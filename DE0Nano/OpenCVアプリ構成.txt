@@ -1,0 +1,18 @@
+﻿
+[■OpenCVアプリのリンクライブラリ構成]
+
+OpenCV-App(Shared)
+|               |
+|               |
+SDL2-Library    OpenCV-Library
+(Shared/Static) (Static/Shared)
+                |
+                FFmpeg-Library
+                (Static/Shared)
+
+OpenCVアプリはOpenCVライブラリとSDLライブラリをリンク
+OpenCVライブラリは動画ファイルコーデックとしてFFmpegライブラリをリンク
+OpenCV,SDL2,FFmpegはx86版とARM版をビルドして成功
+gtkはARM版に失敗、これによりARM上でOpenCVのHighGUIモジュールでウィンドウを張れない
+gtkの代わりにX11を使うことでウィンドウを張る代替策は成功
+gtkの代わりにSDL2を使うことでウィンドウを張る代替策

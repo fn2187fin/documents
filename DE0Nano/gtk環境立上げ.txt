@@ -1,0 +1,68 @@
+依存関係の解決できず
+"X11クライアント簡単サンプル"に続く
+
+[■gtkを含むクロス開発環境]
+arm版OpenCVライブラリをビルドすると、Gtk+などのGUIが無効になり、DE0へ転送後もエラー終了する
+エラー終了は通常のエラー処理エラーであって、実行時エラーではない
+gtkを含むクロス開発環境をホストで立ち上げることができるか試す
+
+[■OpenCV HighGUIでのX11対応]
+OpenCVはcmakeでの依存関係チェックの際、Gtkを見失うと、それをリンクしないHighGUIがコンパイルされる
+・OpenCV-3.xでは、Gtk3が標準になっていてクロスコンパイルのホストにGtk3を探す
+・Gtk3が検索できないと、gtk+-2.0系を使う
+・Gtk+-2.0系が検索できないと、GUI無しでコンパイルする
+Gtkを使わないHighGUIって？なぁーんにもしない;-<
+
+[■ubuntuでのgtk+-2.0パッケージ]
+VitualBoxのubuntuはdebianのtrusty
+trustyではGtkパッケージとしてはi386向けしか整備されていない
+arm向けのgtk*は腐ってて使い物にならない
+特にglibcとの依存関係がぐちゃぐちゃでどうにもならない
+
+[■ubuntuのgtk3系パッケージ]
+これもぐちゃぐちゃ
+
+[■debian本拠地のdebを探る]
+http://ftp.jp.debian.org/debian/pool/main
+
+↑の中のGtk3.0系のパッケージを漁ると
+*-udeb-*.udeb
+っつーパッケージに*.so*が入っている
+
+*-dev-*.deb
+っつーパッケージに*.pcや*.hが入っている
+例えば、
+
+これらをかき集めると依存関係の解決したディレクトリ構造が構築できるかもしれない
+※udebをググると'u' stands for micro, strip downとか書いてあって μdebの意味
+deb ∋ udeb
+を意味する、領域を節約するために色々なファイルを取り払ったdeb形式と同じもの
+インストールするためにはudpkgを使うらしいが、その他の操作はdpkgで可能
+
+pkg-configは*.pcファイルの中のRequired:を見ているらしい、debのcontrolファイル内容と同じ
+
+1つダウンロードしてdpkgで展開して、pkg-configで依存関係をチェックして、また
+ダウンロードして、、、この繰り返し、、、修行;o<
+
+1日がかりでやってみたけど、、、依存関係は解決できず
+x11
+xrender
+など大量のパッケージの依存関係が解決できず
+oldstableだのoldoldstableだの、sidだのunstableだの漁りまくったけど;-o
+
+[■本拠地をsources.listに加えてaptitudeに頼ってみる]
+sources.listにはアーキについての記述がオプションで書ける
+deb [arch=armhf] http://ftp.debian.org/debian stable main
+と書いて、
+# dpkg --add-architecture armhf
+# dpkg --print-foreign-architectures
+i386
+armhf
+とか出て、
+# apt-get download libglib2.0:armhf
+なんてできるとか
+
+やってみると、依存関係が腐っていて、ほとんど役に立たないなぁ
+依存関係のエラー出まくり
+結局、依存関係が腐ったリポジトリから何かをインストールするのは、
+debを1つ１つダウンロードしようが、xaptだろうが、aptitudeだろうが、、、ムリ

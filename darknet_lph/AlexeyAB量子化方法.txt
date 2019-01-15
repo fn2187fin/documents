@@ -1,0 +1,91 @@
+AlexeyABは、すでにYOLOを量子化している;o)
+https://github.com/AlexeyAB/yolo2_light
+
+caffeも量子化されているが、量子化方法がことなる
+https://github.com/BUG1989/caffe-int8-convert-tools
+↑ひどいhubの名前だぁ;-<
+
+caffeの方法をNVDLAは採用しているらしい(KL情報量)
+
+■AlexeyABの方法　1次解析
+
+AlexeyABの方法では、
+multiplier = entropy_calibration(*image, size,bin_width, max_bin)
+がキモ
+
+●entropy_calibrationの答えが.cfg内にinput_calibration[LayerNo]として書き込まれている、
+  K-Meansで求めたanchorを、.cfg内に書き込むのと似ている:-)
+
+●16個のThreatholdを計算して.cfg内に記述している
+例. bin/yolov3-tiny.cfg 中には、
+input_calibration = 15.7342, 4.41852, 9.17237, 9.70713, 13.1849, 14.9823,
+ 15.1913, 8.62978, 15.7353, 15.6297, 15.6939, 15.4093, 15.8055, 16
+この数値を使い、output_quant_multiplerを求めている
+
+●16個のThreatholdの使い方：test_detector_cpu()でのQuantinization処理
+weights_int8[]の算出はweightsの分布状態から計算していて、16個のThreatholdとは無関係
+input_quant_multiplerは16個のThreadtholdをそのもの
+output_quant_multiplerは16個のThreadtholdから計算している
+
+  ▼parse_net_options()
+    .cfg内input_calibrationの値を数値化(atof())して、
+      net->input_calibration_size     = n (layer数として使われている)
+      net->input_calibration[layerNo] = atof()
+    と保存している
+
+  ▼quantinization_and_get_multipliers(net)で
+　　layer->weights_quant_multipler = get_multiplier(...)/4
+    layer->input_quant_multipler
+    layer->output_multipler
+    の３つの量子化係数(multiplierのi抜けタイポ:-)を求める
+
+    ▼weights_quant_multipler＝get_multiplier(l->weights,size,bit_length(=8))
+      get_distribution()でpin32で分布を取る
+          weightsの分布範囲は、1/64K, 2/64K, 4/64K, 8/64K...32K, 64Kと倍々
+          つまり、2^(-16), 2^(-15), 2^(-14), 2^(-13), , ,2^(15), 2^(16)の領域
+      　　2^(-16)～2^(+16)までの数値領域を2倍しながら32の領域に分割した分布
+          よってプラス領域だけの分布を考えている
+
+                ↓index_max_count(=j)
+                <--->
+               |
+           | | |     |
+         | | | | |   |
+       | | | | | | | | |
+      -~~~~~0~~~~~~~~~~~~+2^32
+            <-  32領域  ->
+
+    ▼32の領域について
+        counter = j～j+bit_length(2^(j)～2^(j+8)倍)番目までの出現数総和
+        index_max_count = j = 出現数の累積が最大の数値領域の始まり
+
+j         0     1     2    3    4    5    6     7     8     9   10   11   12  13  14  15 16 17 18 19 20 21 22  23  24  25   26   27   28   29    30    31    32
+       ^-16  ^-15  ^-14 ^-13 ^-12 ^-11 ^-10   ^-9   ^-8   ^-7  ^-6  ^-5  ^-4 ^-3 ^-2 ^-1 ^0 ^1 ^2 ^3 ^4 ^5 ^6  ^7  ^8  ^9  ^10  ^11  ^12  ^13   ^14   ^15   ^16  
+    1/65536 1/32K 1/16K 1/8K 1/4K 1/2K 1/1K 1/512 1/256 1/128 1/64 1/32 1/16 1/8 1/4 1/2  1  2  4  8 16 32 64 128 256 512 1024 2048 4096 8192 16384 32768 65536
+                                                            <------ここに集中しているならば----->
+                                                            2^(-16)*2^9 = 2^(-7)
+
+    ▼multiplier(答え) = 1/ ( 2^(-16) * 2^(index_max_count) )
+        2^(-16)に掛けてインデックス(j)に対応する2^(X)を求める
+        例. index_max_count=12ならば領域12から20番目(2^(-4)～2^(4))までに最も多くweightsを含み、
+        multiplier = 1/2^(-16+12) = 2^(+4) = 16　∵index==12 then 2^(-4)
+
+      layer->weights_quant_multipler = get_multiplier(...)/4 = 2^(+4)/4 = 4
+
+      これでweightsの量子化が終了するので、一般的な量子化式と照らし合わせると
+      一般式： 2^8 / 2|Max| = 1/2^7|Max|
+      Alexey：   4 /  |8bit領域の下限値|
+      のようなことになり、ここでは4だが、コメントには2～8から選べ！とあり、かなり怪しい量子化に見える
+
+  ▼new_weights    = weights[]*multiplier
+    weights_int8[] = max_abs(new_weights, 127)で-127～+127に制限
+    完成 weights_int8[]
+
+  ▼calibrationした値を使用する
+    layer->input_quant_multipler = net.input_calibration[layerNo]   未定義時は40
+    layer->current_input_mult    = net.input_calibration[layerNo+1] 未定義時は40
+    完成 layer->input_quant_multipler
+
+  ▼layer->output_quant_multipler =
+      current_input_mult / l->input_quant_multipler / R_MULT(=32))
+    完成 layer->output_quant_multipler

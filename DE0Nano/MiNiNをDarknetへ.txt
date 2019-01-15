@@ -1,0 +1,127 @@
+MiNiNをdarknetへ移植
+そろそろchainer-NiNでのネットワークも固まってきたので、darknetへ移植
+※Linux上での対象物の追跡型アプリでは、デジタルズーム状態での推定が走り、誤検出が増える傾向
+※これを抑える学習データも考えられるが後回し
+※Darknetのaugmentationにはcrop処理が入るが、chainer-NiNには無い
+
+darknet_mininリポジトリを作成
+https://github.com/k5iogura/darknet_minin
+
+[★画像入力系～画像拡張]
+
+[■darknetでの教師信号の扱い]
+・darknetのコマンド記法は、
+./darknet yolo train cfg/voc.data cfg/yolo-voc.cfg
+などが基本形
+
+・動作モードと前提としている最終層の形態の関係は、
+detector   :最終層は1x1x5
+yolo       :最終層はNxNxM(=col+row*num_boxes)*(5+classes))
+regressor  :最終層は1x1x1
+なので、mininはdetectorと同等の入力系だが、教師信号の並びが、
+detector = (x,y,w,h,id)
+minin    = (c,r,x,y)
+と異なる
+
+・darknet内部での引数の扱いは、
+① yolo/detector/regressorなどの指定で、教師信号のフォーマットが決まる
+   yolo         REGION_DATA           fill_truth_region    ⇒read_boxes %d %f %f %f %f
+   detector     DETECTION_DATA        fill_truth_detection ⇒↑同じ
+   regressor    REFRESSION_DATA       load_regression_labels_paths %f
+   classifier   CLASSIFICATION_DATA   fill_truth パス名の中にラベル名を探してインデックスを教師信号
+
+float *truthの構造は、
+detection  : [<x><y><w><h><id>] x 教師ファイルライン数(最大num_boxes)
+             <id>を直接推定させる教師信号になっている
+yolo       : [N + N x num_boxes x [<c><class..class><x><y><w><h>]] x 教師ファイルライン数
+             教師ファイルでは画像全体に対する(X,Y)が記述されるので、各BOX内での(x,y)に変換する
+             画像全体内での0.3は、7x7の最終層で考えると、0.3x7-int(0.3x7)=0.1と変換される
+regressor  : [<v>]
+regressor改: [<c><radius><x><y>]
+
+② train/valid/test/demoなどの指定で、darknetの動作モードが決まる
+
+③ yolo-voc.cfg/minin_det.cfgなどの内部で使うロス計算層名で教師信号と推定値のロス計算方法が決まる
+   cost         forward_cost_layer    trurhとpredの2乗誤差計算  cifar/darknet/resnet/vgg-16など
+   region       forward_regin_layer   iouなどの複雑な計算       YOLO
+
+[■MiNiNの教師信号の読み込み]
+MiNiNの最終層は、1x1x4でチャネル方向に、
+<conf> <Radius> <center-X> <center-Y>
+になっている
+
+FlickrAPIなどから独自に集めた教師信号はVOCデータセットと同じく、
+<id> <center-X> <center-Y> <W> <H>
+のフォーマットで書いたので、ファイル読み込み時に、
+
+ファイルフォーマット　<id> <center-X> <center-Y> <W> <H>
+↓
+メモリ上の配置        <conf> <Radius> <center-X> <center-Y>
+とする必要がある
+
+<<<<<<< HEAD
+=======
+darknetのregressorを改造して試す↓
+
+>>>>>>> f7068e4dd138335f26eea21f8f456bc2d5cb6468
+[■位置推定のX座標がほぼ中心を推定する症状]
+chainerでのアルゴ開発時にも同様の症状がでた
+YOLOを参考にaugmentすること、および、対象物を上下左右にクロップすることで解決した
+今回の原因は下記前提を無視したことによるもの
+「regressorモードでは、画像1つに教師信号が1つであって、
+画像をシフトなどしても、教師信号には影響しないタスクにしか使えない前提がある」
+regressorについてaugmentationを比較すると下記
+
+yolo/regressorでのaugmentationの違い
+・regressorモードでのaugmentationは、
+　crop
+　flip
+　rotate/aspect
+　distort
+　などの画像拡張が入るが、教師信号に対しては何もしない(まぁ当然↓;-)
+
+・regressorモードでのaugmentationは教師信号を無視しており、
+　augmentによる画像変換に伴う教師信号の変換処理が実装されていない
+　例えば画像をflip処理しても教師信号はflip処理しない
+
+・yolo/detectorモードでのaugmentationは教師信号を含めて変換処理される
+
+・yoloモードでは最終層(region)がNxNxM(N:最終層のX、Y次元数 M:最終層の1マスに持つデータ数)でありその補正も行う
+  detectorモードの最終層(detection)は1x1xMである
+  つまり、yolo/detectorの違いは最終層(region/detection)での次元数の違い
+
+<<<<<<< HEAD
+・regressorのデータ読み込みを処理をload_data_regressionからload_data_regionへ変更
+　load_data_regionはYOLOのデータ読み込み処理であり、
+　crop
+  flip
+  distort
+  などの画像拡張が、画像と教師信号に入る
+
+・load_data_regionと推定結果について、
+　教師信号の分布を確認するとX,Y共に単峰分布になっている、Xは0.5付近、Yは0.7付近に鋭い山
+　上記データ分布により(?)、人位置追跡の左右方向は弱く、上下方向は上半分に張り付いてほぼ追跡しない
+　データ分布について、
+　chainer-NiN試行と同等に左右上下に山が2つづつある双峰分布に変更し汎化に期待
+　存在推定でネガデータを避けられないので、存在推定のロス重みを5.0で試す
+
+=======
+・regressorのaugmentationを修正するか、detecorをcost-layer付きで使うか
+　まずはregressorのaugmentationを止める修正を試す
+  regressorの入力系をREGRESSIONからDETECTIONへ変更する
+  regressorの最終層にcost layerを使う
+  とすると入力系は最終層に依存しているので、cost layerのオプションにDETECTIONに必要なものを追加する
+  boxes/classes/jitterが必要であるがclassesは未使用なので、boxes/jitterをcost layerのオプションに追加
+  boxes←args.num_boxes←cfg内のmax_boxesでコピーされてload_data_detectionに渡される
+>>>>>>> f7068e4dd138335f26eea21f8f456bc2d5cb6468
+
+[★推定系]
+　今のところ修正なし
+
+[★表示系]
+・darknetのモードとして、
+　　test
+　　demo
+　により推定結果の画像が表示できる
+　testでは画像ファイルパスのリストをサポート
+　demoはDarketOnWindowsYOLOv2にpredict_regressor()を追加しWindowsでのカメラ入力をサポート

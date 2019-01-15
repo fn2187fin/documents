@@ -1,0 +1,47 @@
+Windows7からX11でlinuxサーバへ接続する
+sshでTrustedな接続を使う
+
+Xming-6-9-0-31-setup.exe
+Xming-fonts-7-7-0-10-setup.exe
+どちらもインストール
+
+Cygwinのssh,xtermが必要なので
+setup-x86_64.exe
+からX11関連をインストール
+
+Windows環境変数のPATHにcygwin64/binを追加
+C:\Cygwin64\bin
+
+インストールは以上
+
+設定
+XLaunchを起動
+Multiple windows
+start a program
+run local xterm
+save configuration
+cancel
+一旦とめる
+
+これでコンフィグファイル作成終わり
+デフォルトでconfig.xlaunch
+
+趣味で色を変えるには、terapadでconfig.xlaunchを編集
+Program="xterm"
+↓
+Program="xterm -fg white -bg darkblue"
+これで真っ白からダークに変わる
+
+セーブしたファイル(config.xlaunch)を起動
+xtermが立ち上がるハズ
+
+日本語ファイル名が化けるなら、~/.bashrcを編集
+export LC_CTYPE=en_US.UTF-8
+これで日本語ファイル名はOK
+
+注意
+
+起動したxtermから抜けるとXmingサーバも落ちる
+ので、Xmingサーバを立ち上げて置きたければ、Xmingショートカットを使う
+config.xlaunchを２つ立ち上げることはできない
+cygwinのX11でもsshは動くが、xtermの動きがちょー不安定、なのでcygwin X11は使わない

@@ -1,0 +1,82 @@
+parser.cにYOLOのload_/save_がある
+
+
+■save convolutional parametor order
+l.biases           l.n                    biases
+l.scales           l.n                    scales
+l.rolling_mean     l.n                    mean
+l.rolling_variance l.n                    variance
+l.weights          l.n*l.c*l.size*l.size  weitghts
+
+■load convolutional parametor
+
++------------+
+ l.n bias    | 
++------------+
+ l.n scales  | if(l.batch_normalize && !l.dontloadscales)
++------------+
+ l.n mean    | if(l.batch_normalize && !l.dontloadscales)
++------------+
+ l.n variance| if(l.batch_normalize && !l.dontloadscales)
++------------+
+ num weights |
++------------+
+
+■built-in normalization
+
+gamma    : l.scales
+beta     : l.biases
+variance : l.rolling_variance
+mean     : l.rolling_mean
+l.rolling_mean,l.rolling_varianceは、l.mean,l.varianceから下記の手順を繰り返して求めている
+         = 0.99*l.rolling_mean
+        += 0.01*l.mean
+l.meanはチャネル単位の平均値
+l.varianceはチャネル単位の分散
+
+▼ At Training Normalize algorithm
+
+          gamma * (out[j] - mean)
+bn[j] = --------------------------- + beta
+              sqrt(variance)
+
+get gamma, mean, beta, variance
+
+▼ At Saving Built-in algorithm
+
+from given gamma, mean, beta, variance
+
+           gamma *  w                     gamma*(b - mean)
+w_new = --------------           b_new = -----------------   +  beta
+        sqrt(variance)                    sqrt(variance)
+
+save b_new, w_new order
+
+※calcation method of w_new and b_new.
+
+maybe w order is,
+<_____________l.c____________________>
+| kernel*kernel | kernel*kernel | ... |
+| kernel*kernel | kernel*kernel | ... |
+| kernel*kernel | kernel*kernel | ... |l.n
+| kernel*kernel | kernel*kernel | ... |
+| kernel*kernel | kernel*kernel | ... | 
+
+due to GEMM orderring, therefore,
+
+<_____________l.c____________________>
+| kernel*kernel | kernel*kernel | ... |x gamma[0] / √variance[0]
+| kernel*kernel | kernel*kernel | ... |x gamma[1] / √variance[1]
+| kernel*kernel | kernel*kernel | ... |
+| kernel*kernel | kernel*kernel | ... |
+| kernel*kernel | kernel*kernel | ... |x gamma[l.n-1] / √variance[l.n]
+
+And about b_new,
+b_new[0] = gamma[0]*(beta[0]-mean[0])/√variance[0]
+b_new[1] = gamma[1]*(beta[1]-mean[1])/√variance[1]
+...
+b_new[n] = gamma[n]*(beta[n]-mean[n])/√variance[n]
+
+■forward prediction
+
+load network at batch_normalize=0 or dontloadscales=1

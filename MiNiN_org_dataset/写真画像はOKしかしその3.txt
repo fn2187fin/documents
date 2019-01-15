@@ -1,0 +1,118 @@
+NIN3_128_DET1x4での認識 その3
+
+学習データセットでは、99％近いPrecisionが得られても、カメラ画像を入力すると、、、まるで認識がヘンテコ;-<
+
+[■学習とテスト結果]
+・カメラ画像について
+主観的には、55%のスレッショルドで、
+ロバスト性あり
+モアレに弱いことがある
+推定位置は中心部に寄っていて、四隅で認識されることは少ない
+な印象
+
+[■改善策]
+・推定位置が四隅に集中する⇒augmentationを4方向から8方向
+・ネガ画像を増やして、posi:nega=4:6の10万画像
+
+[■結果]
+・推定位置が四隅に集中する、改善できず
+・ロバスト性は向上した(感覚)
+・モアレには強くなっている(感覚)
+・スレッショルドは60%近辺
+・空、雲、雪山では誤検出している
+
+・マシーン数値は
+cache used/size=99674/1000000
+<* epoch 300 done /home/20076433/chainer-NiN NIN3_128_DET1x4_46 *>
+train loss: 0.0237386336309 error: 10.7094633235
+valid loss: 0.0243080137964 error: 10.787426105
+test  loss: 0.023262931 error: 10.9542272951
+test time: 14.17s
+elapsed time: 182.86
+best test error: 0.0231260597551
+best valid loss: 0.0232671713267
+best test loss : 0.0231260597551
+augmentation4方向に比べて2～3%低下
+
+[■次の手：データセットの見直し]
+・ポジネガ比率が4:6では厳しい
+・雪山、空、雲のネガ画像増強
+・頭から靴までを捕らえている画像増強
+　wikiやimdbは顔検出のタスク用なので上半身画像が中心で人を顔で代表する趣旨ではデータが不足
+
+[■データセットをVOCも含めて見直し]
+  13435   13435  969761 /home/20076433/20076433/DatasetScript/train_crop_wiki.txt
+  29998   29998 2420162 /home/20076433/20076433/DatasetScript/train_imdb_f01.txt
+   4554    4554  335294 /home/20076433/20076433/DatasetScript/train_f01.all.txt
+VOCdevkitからfaces 1でデータを抽出して追加し、5:5の学習データとした
+顔と体の両方をポジとしている
+
+結果的には
+・AP=91%程度
+・ロバスト性は向上
+2m以内の人は検出可能だが、位置推定は相変わらず当たらない;-<
+
+[■ロス関数の修正：対象が存在しない時の半径XYはロスとしてみない]
+対象が存在しない時の半径XYはロスとしてみない
+ロス値が軽くなる
+
+☆学習効果
+
+まずカメラ使用の主観的評価(つまり感想:-)
+閾値50%　NIN3_128_DET1x4_46_sgd.model
+・ロバスト性は変わらない
+・1.5m距離の人が分かる
+・位置推定は当たらない
+・AP評価曲線はヘンテコ
+・上半身が移らないと位置推定が機能していない印象
+
+マシーン数値は
+[20076433@ulpc-05989 ~/epsilon/chainer-NiN]$ ./estimate_det.py -m NIN3_128_DET1x -w NIN3_128_DET1x4_46_sgd.model -i s300.txt 
+make network structure                                                                                                       
+(1, (1, 32, 128, 128))                                                                                                       
+(2, (1, 32, 64, 64))                                                                                                         
+(3, (1, 64, 64, 64))                                                                                                         
+(4, (1, 32, 64, 64))                                                                                                         
+(5, (1, 32, 64, 64))                                                                                                         
+(6, (1, 32, 32, 32))                                                                                                         
+(7, (1, 64, 32, 32))                                                                                                         
+(8, (1, 32, 32, 32))                                                                                                         
+(9, (1, 32, 32, 32))                                                                                                         
+(10, (1, 32, 1, 1))                                                                                                          
+(11, (1, 4, 1, 1))                                                                                                           
+net in_size/go_size/go_chnl=128/1/4                                                                                          
+load pretrained weight                                                                                                       
+load NIN3_128_DET1x4_46_sgd.model weight pretrained                                                                          
+load or set source of prediction                                                                                             
+checking(352 files)...                                                                                                       
+<*-------------------- BDDataset Status ------------------------------*>                                                     
+image cache usage:319/(cache size = 1000000)                                                                                 
+total list/found/lost/correct = 352/319/33/319                                                                               
+imagecode:={'.gif': 0, '.bmp': 0, '.jpg': 319, '.png': 1}                                                                    
+in_posi_boxies/in_nega_boxies = 124/195/(319) boxwise-posi:nega=46                                                           
+image-files per directries report:top-7                                                                                      
+         6 85                                                                                                                
+         7 01                                                                                                                
+        19 office                                                                                                            
+        94 indoorCVPR_09                                                                                                     
+       101 spatial_envelope_256x256_static_8outdoorcategories                                                                
+       101 weights                                                                                                           
+       124 wiki                                                                                                              
+<*-------------------- BDDataset Status ------------------------------*>                                                     
+import images on memory                                                                                                      
+loading done 319 image and truth                                                                                             
+write out result, truth data into objradius_data.txt                                                                         
+        0.05 precision/recall/f1=1.00/1.00/1.00                                                                              
+        0.17 precision/recall/f1=1.00/0.90/0.95                                                                              
+        0.19 precision/recall/f1=1.00/0.81/0.89                                                                              
+        0.25 precision/recall/f1=1.00/0.73/0.84                                                                              
+        0.29 precision/recall/f1=1.00/0.63/0.77                                                                              
+        0.36 precision/recall/f1=1.00/0.53/0.69                                                                              
+        0.42 precision/recall/f1=1.00/0.40/0.57                                                                              
+        0.49 precision/recall/f1=1.00/0.31/0.48                                                                              
+        0.60 precision/recall/f1=1.00/0.23/0.37                                                                              
+        0.65 precision/recall/f1=1.00/0.12/0.22                                                                              
+        0.77 precision/recall/f1=1.00/0.03/0.06                                                                              
+        AP=1.000                                                                                                             
+        processing form 0...                                                                                                 
+        posi-box/batch/dataN=124/319/319        not estimated=0                                                              

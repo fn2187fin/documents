@@ -1,0 +1,13 @@
+mandelbrotデモのmicroSDではroot以下の容量が小さすぎるので、、、
+
+・空き領域(7.2GB)をext2でフォーマット(中華製フォーマッタを使った)
+
+・マウントポイント作成
+# mkdir /area51
+# chmod 755 /area51
+
+・/etc/fstabの修正
+/dev/mmcblk0p4 /area51 ext2 defaults 0 0
+# mount -a
+
+これで/area51/以下に7.2GBがマウントされました:-)

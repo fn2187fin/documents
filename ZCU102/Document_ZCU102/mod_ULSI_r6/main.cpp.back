@@ -1,0 +1,111 @@
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+
+#include "RxTx.hpp"
+#include "main.hpp"
+
+suseconds_t utime(){
+	struct timeval t0;
+	gettimeofday(&t0, NULL);
+	return(t0.tv_usec);
+}
+
+#define WIDTH  256
+#define HEIGHT 256
+#define CHANNEL  3
+
+#define CMD_NOP (0x0)
+#define CMD_TOGLE_AFTER_BEFORE (0xA)
+#define CMD_RESET_SUBFRAME_RNG (0xB)
+
+int main(int argc,char**argv){
+	int port=8888;
+	char host[17]="";
+	int cmd,arg1,arg2;
+	static unsigned char header[]={
+		0xA,0x5,0xA,0x5,0xA,0x5,0xA,0x5,0xA,0x5,0xA,0x5,0xA,0x5,0xA,0x5,0xA,0x5,0xA,0x5
+	};
+	int FlagAfterProc=1;
+	static int header_size=sizeof(header);
+	sprintf(host,"%s","192.168.1.100");
+	if(argc>1){
+		printf("command [port] [host]\n");
+		printf("port :=%d\t(default)\n",port);
+		port = atoi(argv[1]);
+		printf("port :=%d\t(updated)\n",port);
+	}
+	if(argc>2){
+		printf("host :=%s\t(default)\n",host);
+		sprintf(host,"%s",argv[2]);
+		printf("host :=%s\t(updated)\n",host);
+	}
+	inetRxTx rx(host, port);
+	rx.Bind();
+
+	int N=0, n=0, M=0, retry=0;
+	int SubFrameNo=0, SubFrameBg=0, SubFrameNm=0;
+	unsigned char buf[CHANNEL*HEIGHT*WIDTH];
+	unsigned char image[CHANNEL][HEIGHT][WIDTH];
+
+	// Weight Ready
+	printf("Weight Reading.. ");
+	after_classify(PROC_INIT, image);
+	printf("Ready\n");
+	int answer;
+	while(1){
+
+		rx.Accept();
+
+		memset(buf, 0, sizeof(buf));
+		N=rx.recv_serv(buf,HEIGHT*WIDTH*CHANNEL);
+
+		if(buf[0]==header[0] & buf[1]==header[1]){
+			if(!memcmp(buf,header,header_size)){
+				if(buf[header_size]==CMD_TOGLE_AFTER_BEFORE){
+					// 0xA0x5*20Byte + Code
+					FlagAfterProc=~FlagAfterProc;
+					printf("CMD_TOGLE_AFTER_BEFORE\n");
+				}else if(buf[header_size]==CMD_RESET_SUBFRAME_RNG){
+					// 0xA0x5*20Byte + Code + Begin(0-14) + End(0-14)
+					SubFrameNo=SubFrameBg=buf[header_size+1];
+					SubFrameNm=buf[header_size+2]-SubFrameBg+1;
+					printf("CMD_RESET_SUBFRAME_RNG %d-%d/%d\n",
+						SubFrameBg,buf[header_size+2],SubFrameNm);
+				}
+				memset(buf,0,6);
+				buf[0]=(unsigned char)buf[header_size];
+				M=rx.send_serv(buf,6);	// return recieved command code
+				rx.disconnect();
+				continue;
+			}
+		}
+
+		memcpy(image,buf,CHANNEL*HEIGHT*WIDTH);
+		answer = after_classify(PROC_RECOG,image);
+		printf("answer=%d\n",answer);
+
+		printf("%d read\n",N);
+		memset(buf, 0, sizeof(buf));
+		buf[0]=(unsigned char)SubFrameNo;
+		buf[1]=0x00;	//clear a byte for car
+		buf[2]=0x00;	//clear a byte for pedestrian
+		buf[3]=0x00;	//clear a byte for sign
+		buf[4]=0x00;	//clear a byte for light
+		buf[5]=0x00;	//clear a byte for nothing
+		// change answer from 0-4 to 1-5, then answer==1 is car
+		// answer 0 means ignore
+		buf[answer+1] = answer+1;
+		M=rx.send_serv(buf,6);
+
+		printf("N=%d read M=%d send\n",N,M);
+		if(++SubFrameNo==SubFrameNm) SubFrameNo=SubFrameBg;
+		rx.disconnect();
+	}
+	return 0;
+}
+

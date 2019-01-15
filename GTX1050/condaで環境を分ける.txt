@@ -1,0 +1,30 @@
+Windows7 cmderからcondaで環境を分ける
+
+[■python2.7+chainer2.0.2な環境をWindows上に作る]
+conda環境を作る
+
+$ conda -n py27_ch202 python=2.7 anaconda
+↑最後の`anaconda`を付けないとエライことになるから注意
+scipyやらblasやら不足してまともにchainerが動かなくなる
+folderが読み取り専用！とかになってpipが動かない
+
+↓名前を確認
+$ conda into -e
+
+環境を変える
+$ source activate py27_ch202
+
+chainerを入れる
+$ export PYTHONIOENCODING=utf-8
+$ pip install chainer==2.0.2
+なんかぁインストールログが文字化けするけど;-<
+正常にインストールされたらしい
+
+chainerの確認
+$ python
+$ import chainer
+$ chainer.__version__
+
+[■MININのテスト]
+chainer2.0.2だとMININのテストが動きました:->
+

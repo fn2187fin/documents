@@ -1,0 +1,7 @@
+cc1plus: error: include: Value too large for defined data type
+cc1plus: error: src/Server.cpp: Value too large for defined data type
+
+64bitなファイルシステムにファイルを置いて、32bitのGCCでコンパイルすると、ソースファイル自体読めないみたい
+
+#define _FILE_OFFSET_BITS 64
+Webでは、↑使え！　とかあるが効かない

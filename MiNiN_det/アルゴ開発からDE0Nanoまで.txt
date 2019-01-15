@@ -1,0 +1,29 @@
+DE0Nana向けNNアルゴ開発～実装評価の流れ
+
+[■NNアルゴ開発はchainer-NiN]
+chainer上でのNNアルゴの設計・学習・評価
+
+・学習は、CentOS7＋GPGPU+chainer+cupy上で
+　学習処理の効率的な扱いにはGPGPUが有利
+
+・カメラ映像のテストは、Windows7+chainer上で
+　CentOS7にはUSBカメラが載っていないのでWindows7上のchainerでテスト
+　Windows7+VirtualBox+Darknetでカメラテストも可能
+
+ウェイトはchainerで共通なので、CentOS⇒Windows7で転送して使用する
+
+[■DarknetでのNNアルゴ学習]
+Darknet上でのNN学習・ウェイト生成
+
+・CentOS7+Darknet+GPGPUでNNウェイト作成
+　学習処理の効率的な扱いにはGPGPUが有利
+
+[■DE0Nano上での推定処理移植]
+DE0Nano上でのカメラ映像からのNN推定処理
+
+・Windows7+VirtualBox+Darknet+ALTERA-SDKでDE0Nanoオブジェクト生成
+　ALTERA-OpenCL-SDKのLinux版は未インストールなのでWindows版をVirtualBox上で使う
+
+・NNウェイトをCentOS⇒DE0Nanoで転送して使用する
+
+以上の流れであり、非常に煩雑

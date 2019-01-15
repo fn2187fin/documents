@@ -1,0 +1,54 @@
+Flickr-APIから画像収集してみたけど、OpenImagesの内容はアノテーション付きFlicrだったみたい
+
+[■データ内容]
+すべてCSV形式で提供されている
+アノテーション、クラス記述、画像URLが入っている
+wget https://storage.googleapis.com/openimages/2017_11/annotations_human_bbox_2017_11.tar.gz
+wget https://storage.googleapis.com/openimages/2017_11/classes_2017_11.tar.gz
+wget https://storage.googleapis.com/openimages/2017_11/images_2017_11.tar.gz
+
+annotation header:
+ImageID,Source,LabelName,Confidence,XMin,XMax,YMin,YMax,IsOccluded,IsTruncated,IsGroupOf,IsDepiction,IsInside
+
+images header:
+ImageID,Subset,OriginalURL,OriginalLandingURL,License,AuthorProfileURL,Author,Title,OriginalSize,OriginalMD5,Thumbnail300KURL
+
+class :
+LabelName, Description
+
+(※やばい、Descriptionに英語だけじゃなくウムラルトみたいな文字が入ってる;-P
+↓人が付加したアノテーションだが、クラス分類のみのアノテーション
+wget https://storage.googleapis.com/openimages/2017_11/annotations_human_2017_11.tar.gz
+
+アノテーションとイメージのFlickrURLとラベルが入っている
+
+[■手繰り方]
+ImageIDからURLとラベル名がわかり、ラベル名からオブジェクト(名前、座標)が手繰れる構造
+
+一人だけ顔が映っているデータを探すには、
+class-descriptionsからキーワードがFaceなLabelNameを探す(＝/m/0dzct)
+↓
+annotations-human-bbox.csvから顔ラベル名が１つなimageID,オブジェクト座標を探す
+↓
+images.csvからimageURLを探す
+↓
+wgetでダウンロード
+
+人以外のデータは、
+class-descriptionsからFaceを含む複数のLabelNameを探す
+↓
+annotations-human-bbox.csvからFaceを含まないimageIDを探す
+↓
+images.csvからimageURLを探す
+↓
+wgetでダウンロード
+
+※annotations-human-bbox.csvのhumanは人のアノテーションの意味ではなく、人手で作ったアノテーションデータのことらしい
+
+[■FlickrAPI要るか?]
+OpenImagesには、膨大なFlickrの内容が整理されている
+APIでキーワード打って検索するのは、リアルタイムにアップされる画像を追跡する場合に必要なのか？
+要る;-) OpenImageは
+・Tag付けの精度が悪い
+・オブジェクトがグルーピングされる画像がある
+・存在しないURLも多数

@@ -1,0 +1,90 @@
+1の最終段の各ノードで、人物分類を推定させるネットワークを試す
+
+[■ネットワーク形態]
+
+ 3x128x128 conv1
+32x128x128 max
+32x 42x 42 actv2
+64x 42x 42 actv3
+64x 42x 42 conv12
+64x 42x 42 max
+64x 14x 14 actv22
+32x 14x 14 actv32
+32x 14x 14 aver
+32x  1x  1 actv4
+↓
+2x1x1(最終段)
+
+128x128の元画像を1x2にして、対象物の存在とその半径を推定できるか;-<
+
+[■学習データ]
+https://data.vision.ee.ethz.ch/cvl/rrothe/imdb-wiki/
+http://web.mit.edu/torralba/www/indoor.html
+http://people.csail.mit.edu/torralba/code/spatialenvelope/
+↑から収集したが、縦長画像はムシ
+
+imdb      84,372
+crop_imdb 26,988
+indoor    15,600
+spatial    2,688
+
+↑からファイルリストとアノテーションデータとリストを作成
+$ python mat2txt.py imdb/imdb.mat
+
+[■学習と認識性能]
+①学習
+$ python trainBD_det.py -g 0 -i train_imdb.txt 
+-a ~/20076433/dataset/train_crop_imdb.txt ~/Darknet/weight/indoorCVPR_09_nega.txt 
+Darknet/weights/spatial_envelope_256x256_static_8outdoorcategories_nega.txt
+--augment -m NIN2_128_DET1
+
+②評価
+$ ./estimate_det.py -m NIN2_128_DET1 -w NIN2_128_DET1_sgd.model -i s300.txt ;./bythreshold.py
+make network structure
+net in_size/go_size/go_chnl=128/1/2
+load pretrained weight
+load NIN2_128_DET1_sgd.model weight pretrained
+load or set source of prediction
+checking(352 files)...
+image cache usage:319/(cache size = 1000000)
+319 image and truth found in s300.txt
+total list/found/lost/correct = 352/319/33/319
+imagecode:={'.gif': 0, '.bmp': 0, '.jpg': 319, '.png': 1}
+import images on memory
+loading done 319 image and truth
+prediction and write out result, truth data into precision_data.txt
+        precision/recall/f1/mAP=0.900/0.878/0.889/0.973
+        processing form 0...
+        posi-box/batch/dataN=39/100/319 not estimated=219
+        precision/recall/f1/mAP=0.950/0.950/0.950/0.991
+        posi-box/batch/dataN=38/200/319 not estimated=119
+        precision/recall/f1/mAP=0.927/0.927/0.927/0.981
+        posi-box/batch/dataN=40/300/319 not estimated=19
+prediction and write out result, truth data into precision_data.txt done
+0.10 Accuracy/Precision/Recall/F-Value = 90.7/ 80.7/ 100.0/ 89.3 TP:FP:TN:FN=    117:     28:    155:      0/     300
+0.15 Accuracy/Precision/Recall/F-Value = 92.3/ 83.6/ 100.0/ 91.1 TP:FP:TN:FN=    117:     23:    160:      0/     300
+0.20 Accuracy/Precision/Recall/F-Value = 93.0/ 84.8/ 100.0/ 91.8 TP:FP:TN:FN=    117:     21:    162:      0/     300
+0.25 Accuracy/Precision/Recall/F-Value = 93.3/ 85.4/ 100.0/ 92.1 TP:FP:TN:FN=    117:     20:    163:      0/     300
+0.30 Accuracy/Precision/Recall/F-Value = 93.7/ 87.1/ 98.3/ 92.4 TP:FP:TN:FN=    115:     17:    166:      2/     300
+0.35 Accuracy/Precision/Recall/F-Value = 94.0/ 89.0/ 96.6/ 92.6 TP:FP:TN:FN=    113:     14:    169:      4/     300
+0.40 Accuracy/Precision/Recall/F-Value = 95.3/ 91.9/ 96.6/ 94.2 TP:FP:TN:FN=    113:     10:    173:      4/     300
+0.45 Accuracy/Precision/Recall/F-Value = 96.0/ 93.4/ 96.6/ 95.0 TP:FP:TN:FN=    113:      8:    175:      4/     300
+0.50 Accuracy/Precision/Recall/F-Value = 95.7/ 93.3/ 95.7/ 94.5 TP:FP:TN:FN=    112:      8:    175:      5/     300
+0.55 Accuracy/Precision/Recall/F-Value = 95.7/ 95.6/ 93.2/ 94.4 TP:FP:TN:FN=    109:      5:    178:      8/     300
+0.60 Accuracy/Precision/Recall/F-Value = 96.7/ 99.1/ 92.3/ 95.6 TP:FP:TN:FN=    108:      1:    182:      9/     300
+0.65 Accuracy/Precision/Recall/F-Value = 95.7/ 99.1/ 89.7/ 94.2 TP:FP:TN:FN=    105:      1:    182:     12/     300
+0.70 Accuracy/Precision/Recall/F-Value = 95.0/ 99.0/ 88.0/ 93.2 TP:FP:TN:FN=    103:      1:    182:     14/     300
+0.75 Accuracy/Precision/Recall/F-Value = 94.3/ 99.0/ 86.3/ 92.2 TP:FP:TN:FN=    101:      1:    182:     16/     300
+0.80 Accuracy/Precision/Recall/F-Value = 91.7/ 100.0/ 78.6/ 88.0 TP:FP:TN:FN=     92:      0:    183:     25/     300
+0.85 Accuracy/Precision/Recall/F-Value = 88.7/ 100.0/ 70.9/ 83.0 TP:FP:TN:FN=     83:      0:    183:     34/     300
+0.90 Accuracy/Precision/Recall/F-Value = 86.7/ 100.0/ 65.8/ 79.4 TP:FP:TN:FN=     77:      0:    183:     40/     300
+0.95 Accuracy/Precision/Recall/F-Value = 80.7/ 100.0/ 50.4/ 67.0 TP:FP:TN:FN=     59:      0:    183:     58/     300
+1.00 Accuracy/Precision/Recall/F-Value = 100.0/ 100.0/ 100.0/ 100.0 TP:FP:TN:FN=      1:      0:    300:      0/     300
+
+③sklearn.metrics.average_precision_scoreを使った結果と自前でT,Yから指標を計算している↑
+s300.txtは、
+https://data.vision.ee.ethz.ch/cvl/rrothe/imdb-wiki/
+↑から収集したwiki画像からランダムに選んだものとindoorやspatialからランダムに選んだもの
+これで評価した
+
+0.97~0.99程度のaverage-precision(AP適合率)であり、良好:-)

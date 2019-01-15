@@ -1,0 +1,32 @@
+・DE1SOCのXwindowを含むlinuxディストリビューションの起動シーケンスについて
+
+linux+XwindowではVGAハード(FrameBuffer)が必要であり、このハードをFPGAで実現している
+よってlinux+Xwindowの起動前に、FPGAのコンフィギュレーションが必要になる
+linux起動前に、BootLoader(U-Boot)でFPGAをコンフィギュレーション後、Linuxブートするシーケンスになる
+ブート用SDカード上では、U-Bootと同じパーティションにFPGAのコンフィギュレーションファイル(.rbf)を置く
+U-Bootはmmcblk0p1のvfat領域にあるので、.rbfファイルも同パーティションに置き、U-Bootからアクセスする
+
+・DE1SOCのOpenCL環境を含むlinuxコンソールの起動シーケンスについて
+
+(1) OpenCLがFPGA上で動作するためには、FPGA上にOpenCLカーネルとHPSのI/F回路が必要
+よってlinuxコンソールの起動前に、FPGAのコンフィギュレーションが必要になる
+linux起動前に、BootLoader(U-Boot)でFPGAをコンフィギュレーション後、Linuxブートするシーケンスになる
+ブート用SDカード上では、U-Bootと同じパーティションにFPGAのコンフィギュレーションファイル(.rbf)を置く
+U-Bootはmmcblk0p1のvfat領域にあるので、.rbfファイルも同パーティションに置き、U-Bootからアクセスする
+
+(2) コンフィギュレーション済のFPGA FabricへOpenCLの対象回路を追加するために、
+OpenCLの対象回路をコンパイルして.rbfを作成し、FPGA回路へ追加するために、
+①linuxカーネルにFPGAマネージャを組込む
+②パーシャル・リコンフィグ用のlinuxドライバ
+③OpenCL-APIを実装した実行時ライブラリ
+が必要
+
+(3) linuxとFPGAでメモリ共有するために、linuxカーネル空間の一部をFPGAへ解放する必要がある
+
+・DE1SOCで起動中のlinuxからFPGAを書き換えることについて
+
+linux動作中にハードウェアが変化することになるので、
+①HPS以外のハード構成に極力依存しない
+②ピン配に依存しない
+などの条件
+

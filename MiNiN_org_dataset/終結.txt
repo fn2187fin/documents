@@ -1,0 +1,46 @@
+終結に当り
+
+[■採用したものと再現]
+・入力サイズ128x128x3、conv 8層(内1x1カーネルは5層) maxpooling 2層　averagepooling 1層
+・1x1x4出力層 4チャネルでConf/Radius/X/Yを推定
+・ポジデータソースはimdb,wiki,voc
+・ポジデータソースから矩形クロッピングで対象を左右上下に振りAugmentation
+・FlickrAPIで人が居そうで居ないネガデータソースを収集
+・収集したネガ画像からYOLOでフィルターして、人が写っていないことを確実にする
+・収集したポジ画像からYOLOでフィルターして、人が一人だけ写っていることを確実にする
+・posi:nega = 6:4　全部で14万枚画像
+・背景は画像中心(0.5,0.5)を正解として、ポジ位置正解1.0に対して重みは0.01
+・追跡型フォーカスアプリ
+
+[■画像収集の再現]
+<gitから>
+$ git clone https://github.com/k5iogura/DatasetScript
+
+<ポジデータの収集>
+$ launch_query.sh query.words -m 3 -g --face 1
+(上の実体はgetImageFromFlickr.pyで、3スレッドで動き、人が一人だけ写った画像をフィルタする)
+(起動するとlaunch_query.commandにスレッドの起動コマンドが保存されるので確認)
+
+<ネガデータの収集>
+$ launch_query.sh query.words -m 3 -g
+(上の実体はgetImageFromFlickr.pyで、3スレッドで動き、人が写っていない画像をフィルタする)
+
+実行ログはクエリワード.out、画像と正解ラベルはクエリワード/＊に置かれる
+
+[■学習の再現]
+<gitから>
+$ git clone https://github.com/k5iogura/chainer-NiN
+実行shellスクリプトがscripts/*にある
+
+<学習>
+$ python trainBD_det.py -ib scripts/list2.txt -m NIN3_128_DET1x -g 0
+GTX1080で30時間、GPUメモリ3GB、CPUメモリ30GB程度必要
+
+<カメラ推定>
+$ python crop_pred_det.py -m NIN3_128_DET1x -w NIN3_128_DET1x4_64_sgd.model -c
+
+[■捨てたもの]
+・detect16 NxN出力層
+・FFDB
+・OpenImage
+・YOLO風ロス関数

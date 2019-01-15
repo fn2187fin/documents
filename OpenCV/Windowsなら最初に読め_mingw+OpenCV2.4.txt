@@ -1,0 +1,60 @@
+windows7+mingw+opencvでビルドする方法　最初に読むこと
+
+※mingwとcygwin両方をインストールしてあると、ひじょーに困る
+※使うのはmingwのgcc,g++のみとなるよう、PATHを通す
+※cmakeは3.6.3以上とすること、"MinGW Makefile"指定ができないので
+※gcc,g++,libなどmingwで統一する
+※makeは/c/tools/mingw64/bin/mingw32-make.exeを使うこと
+
+※cygwinのgccでのopencvコンパイルはコンパイルエラーが出る
+※cygwinのmakeではcmake作成のMakefileが動かない
+※:-Oビックリ
+
+http://01647.hateblo.jp/entry/2014/03/04/105501
+↑参照
+
+■cmakeのバイナリ
+https://cmake.org/download/
+3.11.3最新をダウンロード
+
+■PATH設定
+export PATH=/n/win_shared/cmake-3.11.30-win32-x86/bin:$PATH
+export PATH=/c/tools/mingw64/bin:$PATH
+
+■opencvソース
+https://sourceforge.net/projects/opencvlibrary/files/opencv-win/
+ここから2.4系の最新(2.4.13)
+
+■cmake-gui
+
+□安全なstaticビルドから
+BUILD_SHARED_LIBSはビルドチェックをはずす
+BUILD_TIFFなど画像系はビルドチェックをはずす
+BUILD_opencv_gpu,ml,ocl,pythonなどはチェックをはずす
+
+WITH_CUDA,CUFFT,OPENCL*,EIGEN,OPENEXRなどチェックをはずす
+
+インストール先の指定を忘れずに！
+
+赤いエラー項目がなくなるまで、configureボタンを押して
+
+$ mingw32-make
+$ mingw32-make install
+
+install/x64/mingw/staticlibに*.a
+出来上がり
+
+□全体をdllで
+$ cmake-gui
+BUILD_SHARED_LIBSはビルドチェックを残す！
+
+BUILD_DOC,TESTS,GPU,DEBUGはチェックをはずす
+BUILD_opencv_gpu, ml, objdetect, ocl, pythonはチェックをはずす
+
+WITH_CUDA,CUFFT,OPENCL*,EIGENなどチェックをはずす
+
+$ mingw32-make
+$ mingw32-make install
+
+install/x64/mingw/bin/には*.dll、install/x64/mingw/libには*.a
+出来上がり

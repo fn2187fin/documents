@@ -1,0 +1,34 @@
+img2mpsoc.pyとextractor3cとFPGA間で/dev/memを介し通信する
+
+①python、C共にmmapを使用する
+・mmapはターゲットとするアドレスをプロセスアドレス空間にマップしてそのアドレスを返す
+・プログラムでターゲットアドレスをページ境界アドレスに変換する必要がある
+・ページ境界アドレスとByte長を指定してマップする
+　ページサイズはシステム依存性がある
+　ターゲットアドレスがページ境界アドレスでは無い場合、
+　　ページ境界アドレスからターゲットアドレスへのページ内オフセットの計算が必要
+  　　ページオフセット   = ターゲットアドレス & ~ページサイズ
+　　　ページ内オフセット = ターゲットアドレス % ページサイズ
+　　　mmap(.., マッピングサイズ+ページ内オフセット, ... , ページオフセット)
+　　となる
+
+②書込み同期制御
+書込みはシステムバッファに対して行われ、実際に/dev/memなどを毎度書き換えることはない
+実際の書き換えは、
+・pythonではflush(0,0)関数またはmmap.munmap(...)関数
+・Cではmsync(offset,size)関数またはmunmap(...)関数
+により、/dev/mem実体のメモリを書き換えることになる
+
+【注意】
+Cのmmap関数はvoid*を返すので、これを(unsigned char*)にcastして使うこと
+ unsigned char *adr = (unsigned char*)mmap(.....);
+やってはいけない例として、
+ void *adr = mmap(...);
+ unsigned char a = *(unsigned char*)adr;
+などはハマる原因(void*のアドレス計算がCコンパイラにはできないため)
+
+pythonではnumpyのfromstring関数を使いデータをバイナリに変換して書き込む
+ adr = mmap.mmap(fd,0x1fffff,mmap.MAP_SHARED,mmap.PROT_READ,offset=0xA0200000)
+ ary = np.fromstring(adr[0],dtype=np.uint8)
+ ary[0]=0xa5
+ ary.flush(0,0) #このflushが無いと/dev/memが更新されない

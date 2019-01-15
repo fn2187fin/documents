@@ -1,0 +1,168 @@
+﻿人体検出用に教師信号と入力画像を作る
+このメモは、画像を16分割し(これをBBOXとする)、各BBOXでconfとradiusの2つを推定する
+・人物の中心を示すBBOXにconf==1を立てる
+・人物の領域を円で考え、画像全体の比で半径を表しradiusとする
+の教師信号で学習するケース
+
+[■画像データ]
+画像入力
+64x64へresize
+'train'と'test'のキーで各キーにそれぞれ50,000と10,000データ、
+1データがR1024、G1024、B1024の並びでnumpyを作る
+pickleでファイルセーブ
+
+[■教師信号]
+回帰問題として定義する
+64x64入力画像を16x16の領域(が全部で16個)に分けて考える
+
+①16x16の各領域に対象物の中心があればconf==1、なければ0
+  写っている人物の領域を円と考え、画像全体の比で半径を求める(radius==0~1)
+
+[■pickleでの書出し]
+cifar10の学習検証データは、
+test, trainの二つのキー
+各キーに10,000と50,000のデータ
+x['test'].shapeは(10000L,12288)
+pixelの並びはRGB
+numpy.float32が各要素
+
+ラベルデータは、
+test, trainの二つのキー
+各キーに10,000と50,000のデータ
+labels['test'].shapeは(10000L,)
+numpy.int32が各要素でクラス番号を示す
+
+となっているので、同じフォーマットで書き出す
+
+[■posi/nega/ambiの辞書キーに分けて1つのpickleファイルへ保存]
+例えば、VOCデータセットをファイル名voc_ds.pklで保存するならば、
+ 辞書キーは、
+ ['image_posi' 'image_nega' 'image_ambi' 'truth_posi' 'truth_nega' 'truth_ambi'
+ 'path_posi' 'path_nega' 'path_ambi' ]
+イメージと真値を、ポジ、ネガ、あいまい、とそれぞれの画像ファイルパスを辞書形式で保存
+キーは必ず9つ持ち、len(image['image_posi'])==0などもあり得る
+イメージはデータ数x3x64x64、真値はデータ数x16、とする
+※ambignuousはターゲットが写ってはいるが小さすぎて誤解を招く画像など
+
+これらをVOC、LFW、indoorなどについて作成する
+voc_ds.pkl
+lfw_ds.pkl
+indoor_ds.pkl
+など
+voc_reg16.py lfw_reg16.pyで作成可能
+
+[■複数のpklファイルを再構成する]
+全小領域合計で、ある：ない＝1：1とすること
+
+これらのpickleファイルを用い、
+Posi:Nega == 7:3(多分類問題)
+Posi:Nega == 1:1(2分類問題)
+などの経験則を加味した比率で学習データとテストデータに分けたpickleファイルに再構成する
+※2分類問題でのposi/nega比率は画像枚数を基準に求めると誤る点に注意
+
+①voc_ds.pklとlfw_ds.pklの全てのposiデータを読み込む　　：image_posiN
+②voc_ds.pklとindoor_ds.pklの全てのネガデータを読み込む ：image_negaN
+③image_posiN：image_negaN == 7 : 3
+　または
+③imageに含まれるposiN領域数:negaN領域数 == 1 : 1
+
+として2つのファイルを構成する
+※今回は領域数の比を1:1とした
+
+image.pkl ＠keys()=['test', 'train']
+truth.pkl ＠keys()=['test', 'train']
+↑この形式はCifar10 DataSetの形式である
+
+reconst_reg16.py
+でpklファイルを作る
+
+[■pklファイルのチェック]
+まとめたpklファイルの内容
+$ python reconst_reg16.py -tm --only_check
+...
+# RECONSTRUCTURE PROCESS BY BELOW SLICE..
+p1_train: slice(0, 15662, None)
+p2_test : slice(15662, 17402, None)
+n1_train: slice(0, 26091, None)
+n2_test : slice(26091, 28990, None)
+x1_posi : slice(0, 15662, None)
+x2_nega : slice(15662, 41753, None)
+X1_posi : slice(0, 1740, None)
+X2_nega : slice(1740, 4639, None)
+train_image.shape : (41753L, 3L, 64L, 64L)
+train_truth.shape : (41753L, 2L, 16L)
+test_image.shape  : (4639L, 3L, 64L, 64L)
+test_truth.shape  : (4639L, 2L, 16L)
+
+# STATISTICS
+train data box-wise nonzero/all ratio = 57860/1336096 =  4.33 ←中心を示すBBOXの割合
+test  data box-wise nonzero/all ratio = 6434/148448 =  4.33
+train images/path =       8333 :
+train images/path =       3617 :N:\win_shared\Darknet\weight\VOCdevkit16/VOCdevkit/VOC2007/JPEGImages
+train images/path =      11920 :lfw
+train images/path =       3901 :N:\win_shared\Darknet\weight\VOCdevkit16/VOCdevkit/VOC2012/JPEGImages
+train images/path =      13982 :indoorCVPR
+test  images/path =        899 :
+test  images/path =        373 :N:\win_shared\Darknet\weight\VOCdevkit16/VOCdevkit/VOC2007/JPEGImages
+test  images/path =       1313 :lfw
+test  images/path =        447 :N:\win_shared\Darknet\weight\VOCdevkit16/VOCdevkit/VOC2012/JPEGImages
+test  images/path =       1607 :indoorCVPR
+
+[■ロス関数]
+YOLOv2のロス関数を参考に計算する
+①confロスで
+人物中心を持つBBOX confロス  ＝10.0ΣΣ(conf_pred - exp(radius_pred)/exp(radius_truth))
+人物中心以外のBBOX confロス  (人体の円に入っている時＝0.0) or (人体の円に入っていない時＝1.0ΣΣ(conf_pred**2))
+
+②BBOXロスで
+人物中心を持つBBOX radiusロス＝1.0ΣΣ(radius_pred - radius_truth)**2)
+人物中心以外のBBOX radiusロス＝0.1ΣΣ(radius_pred - 1.0)**2)
+
+※conf_truthを使わないことと、中心のあるBBOXの数は少ないからロスを10倍しているのがミソ
+※近くに正解のBBOXがある時、誤差を小さく見積もるのがミソ
+
+人物中心以外のBBOX confロスでの例
+conf_truth＝
+    0 0 0 0
+    0 1 0 0
+    0 0 1 0
+    0 0 0 0
+radius_truth＝
+    0 0    0 0
+    0 0.5  0 0
+    0 0 0.75 0
+    0 0    0 0
+↓
+manhattanCircle((conf_truth,radius_truth))＝
+    0 1 1 0
+    1 1 1 1
+    1 1 1 1
+    0 1 1 1
+↓(1 - manhattanCircle((conf_truth,radius_truth)))＝
+    1 0 0 1
+    0 0 0 0
+    0 0 0 0
+    1 0 0 0
+※0.5はマンハッタン距離1の円、0.75は距離2の円を作る
+↑これをconf_predに掛けると、人物中心を持つBBOXに近くて人物中心を持たないBBOXのconf_predをゼロにできる
+conf_pred＝conf_pred x (1 - manhattanCircle((conf_truth,radius_truth)))
+この計算をした上で、ロスを計算する
+
+[■平均プーリングの採用]
+max_poolingでは最大値以外の値が捨てられる傾向になるので、
+画像サイズの縮小にaverage_poolingを使う
+
+[■学習と結果]
+学習はchainerV2.0.2+Linux+GTX1080で
+$ python train_det.py -m NIN2_64_DET -nn_in_size 64 -g 0
+conf>0.5==1
+conf<0.5==0
+として、正答率を計算するが、radiusでは評価しない;-<
+99%以上の正答率
+
+[■カメラ]
+max_poolingを使うケースに比べて、
+①FalseNegativeが多めな印象
+②TruePositiveは高い印象
+③4x4への分割ではど真ん中にBBOXが無いので常に左右上下のどちらかに推定が寄るのが気になる
+　YOLOでは11x11とか13x13とか奇数での分割なので、常にど真ん中にBBOXがあり見た目が良い:-)

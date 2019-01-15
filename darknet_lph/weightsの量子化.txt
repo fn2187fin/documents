@@ -1,0 +1,72 @@
+weightsの頻度を調べる
+
+・darknet_ttt ttt5_224_160を使う
+・darknet_tttでttt5_224_160モデルで使っているweightsの頻度を調べる
+・量子化して認識状態を調べる(data/dog.jpgをサンプルに)
+
+$ darknet detect cfg/ttt5_224_160.cfg data/ttt/ttt5_224_160_final.weights data/dog.jpg
+
+■頻度は？
+weights:－から＋まで、０を中心として左右均等に広がっている
+image  :leaky-ReLU(負数は0.1倍される)の影響により、０より上に偏った頻度だが、－値もある
+
+■負のweightsをN倍しても認識に問題ないか？
+N=∞、N=0、N=1.1、N=0.9では認識しなくなる
+N≒1.07程度なら認識する
+
+■weight値を1/255(8bit)で量子化しても認識に問題ない？
+(parse.c)
+
+rng = 1.0/255　// 8bit量子化を想定
+j := 0～255
+  if( min + rng * j <= weights[i] && weights[i] < min + rng * (j+1) )
+      weights[i] = min + rng * j       //　小さい方へ量子化
+
+で、認識結果に問題なし
+
+■加えて、画像(net.input)値を量子化しても認識に問題ない？
+(convolutional_layer.c)
+weightsは8bit量子化した状態で、画像も8bit量子化すると
+
+rng = 1.0/255
+j := 0～255
+  if( min + rng * j <= input[i] && input[i] < min + rng * (j+1) )
+      input[i] = min + rng * (j + 1) // 大きい方へ量子化
+
+で、認識結果に問題なし
+
+※小さい方へ量子化すると認識が合わないなぁ～;O)
+
+★画像の量子化精度を下げると？
+1.0/32(5bit量子化)では認識できなくなるが、1.0/64(6bit量子化)なら認識している、ビックリ(o_o)
+
+■ってことは？
+量子化数をα(=255), A ： weights(minA～maxA), B ： Image(minB～maxB), f()を量子化関数(行列要素は0-255)として、
+
+C ＝ A * B
+minA, minBは負行列と仮定すれば、
+
+C ＝ (αf(A)+minA) * (αf(B)+minB)
+  ＝ αf(A)αf(B) + αf(A)minB + αminAf(B) + minA*minB
+      正の項         負の項       負の項       正の項
+
+これでは、行列演算量が増えてないかぁ？
+とはいえ、整数行列の掛け算と足し算になる、CPU=>FPGA転送量が減るのは良いこと
+
+■オフセットは使わないと
+weightsもimageも、-128~+127までに単純量子化する
+C ＝ A * B
+で、
+A ＝ αA'   ∵　A'=A/α
+B ＝ βB'   ∵　B'=B/β
+として、
+C = αβA'B'
+
+このとき、
+A' ≒ Quant255(A) = 127*A/|MaxA|
+B' ≒ Quant255(B) = 127*B/|MaxB|
+を考えると、
+C  ≒ αβQuant255(A)Quant255(B)
+と近似すると、Quant255(matrix)　＝-128 ~ +128とできて、要素が8bit整数の行列積和とできる
+
+"AlexyABの量子化方法.txt"つづく

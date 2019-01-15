@@ -1,0 +1,48 @@
+GCC最適化 DE10-Nano CycloneV-SoC(A9)
+
+■OpenBLASだけを含むHOSTコードの速度
+コンパイラが、arm-linux-gnueabihf-gccとarm-linux-gnueabihf-g++で、速度が変る
+
+HOSTコードは同一で、
+darknetのgemm演算をim2row()+cblas_sgemm()で実行するコード
+
+arm-linux-gnueabihf-gcc：0.343179 sec
+arm-linux-gnueabihf-g++：0.514524 sec
+
+けっこう違う、g++最適化は遅い
+
+■arm-linux-gnueabihf-gccの半精度浮動小数点をneon-fpuと一緒に使う
+arm-linux-gnueabihf-gccでは、半精度浮動小数点をサポートしている
+また、neon-fpuも一緒に最適化できる
+
+https://gcc.gnu.org/onlinedocs/gcc/Half-Precision.html
+↑ここに詳細があるが、
+
+-mfp16-format=ieee selects the IEEE 754-2008 format
+-mfp16-format=alternative selects the ARM alternative format
+の2種類フォーマットがあって、ダイナミックレンジが違う。
+
+さらに、neon-fpuとの組み合わせ最適化ができて、
+-mfpu=neon-fp16
+
+一方、x86系では半精度浮動小数点は未サポートなので、ソースコード上は、
+#ifdef __arm__
+のようにx86とarmを切り分けることが必要になる
+
+動作速度
+darknetで試す blasを使わずsGEMMは全てFPGA処理
+(ls data/*.jpg | darknet detect cfg/ttt5_224_160.cfg data/ttt/ttt5_224_160_final.weights)
+
+arm-linux-gnueabihf-gcc -mfp16-format=ieee -mfpu=neon-fp16：0.972610 sec
+↑neonを指定しないと、、、おそーい！
+
+ということでneonで__fp16⇔float間のコンバージョンを高速化するらしい↓
+The ARM target provides hardware support for conversions between __fp16 and float values as an extension to VFP and NEON
+
+■mfpu=neon-fp16の悪影響
+-mfpu=neon-fp16で非FPGA版をコンパイルすると、、、オプションを付けることで、なんと遅くなってしまう;-< 0.438433 sec
+blasだけでsGEMM処理しているので、半精度浮動小数点は使っていないのだが、コンパイルオプションの悪影響が発生している
+コンパイルオプションを付けるべき関数と付けてはいけない関数で、分てコンパイルするべきか？
+
+
+

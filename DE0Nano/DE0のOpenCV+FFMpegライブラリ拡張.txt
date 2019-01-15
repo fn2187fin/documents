@@ -1,0 +1,46 @@
+[■OpenCVダイナミックライブラリ拡張]
+
+・実体となるライブラリ群をDE0の/tmpへコピー
+  WinSCPで実体になっているライブラリファイルlibopencv_*.so.3.2をコピー
+・実体からシンボリックリンクを作成
+DE0の/tmpへスクリプト(solink.sh)をコピー
+DE0へLoginして
+
+# cd /tmp;chmod +x solink.sh
+# cat solink.sh
+
+#! /bin/bash -e
+export entities=`ls *.0`
+echo ${entities}
+for entity in ${entities}
+do
+	export erase1=`echo ${entity} | sed 's/\.[0-9]$//'`
+	export erase2=`echo ${erase1} | sed 's/\.[0-9]$//'`
+	export erase3=`echo ${erase2} | sed 's/\.[0-9]$//'`
+	if [ ${erase2} = ${erase3} ];
+	then
+		ln -s $entity $erase3
+	else
+		ln -s $entity $erase3
+		ln -s $entity $erase2
+		ln -s $entity $erase1
+	fi
+done
+
+# ./solink.sh
+
+・ディレクトリへコピー
+# mkdir /lib/opencv
+# cp -R *.so.* /lib/opencv/
+
+・LD_LIBRARY_PATHを設定
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/lib/opencv/
+
+これでimread/imwriteを使うHappyFish.jpgのOpenCVのテストアプリは正常動作:-)
+
+で、シンボリックリンクを含めてtarで固めてDE0で展開するんが得策だなぁ;-<
+
+[■FFMpegのダイナミックリンクライブラリ拡張]
+# cd ~/libs/ffmpeg_armhf/lib
+# tar cvf ffmpeg.tar *.so*
+これをDE0の/lib/oponecvで展開するだけ

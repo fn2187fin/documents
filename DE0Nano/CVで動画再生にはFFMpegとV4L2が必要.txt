@@ -1,0 +1,339 @@
+﻿"FFMPEGのARM移植"に続く
+
+OpenCVのcmakeでVideoの項目が全部Noであれば、動画再生ができない
+動画再生には、動画コーデックと共にOpenCVをビルドすること必須
+FFMPEGインストールしてOpenCVと一緒にビルドを試す
+結論的に、OpenCVでのVideoCaptureオブジェクトはFFMpegとV4L2を使って動画を再生するらしい
+よって、x86版、ARM版共にFFMpegとV4L2(カーネル再ビルド)が必要になる
+
+[■OpenCVで動画再生にFFMPEG]
+
+[■まずx86版FFMPEGのインストールから]
+↓ここに従ってFFMPEGをインストール
+http://uropan.net/2012/09/ffmpeg%E3%81%A8opencv%E3%82%92%E3%82%A4%E3%83%B3%E3%82%B9%E3%83%88%E3%83%BC%E3%83%AB/
+
+・FFMPEGに必要なライブラリをインストール
+apt-get install 
+ build-essential
+ libgtk2.0-dev
+ libjpeg-dev
+ libtiff5-dev
+ libjasper-dev
+ libopenexr-dev
+ cmake
+ python-dev
+ python-numpy
+ python-tk
+ libtbb-dev
+ libeigen3-dev
+ yasm
+ libfaac-dev
+ libopencore-amrnb-dev
+ libopencore-amrwb-dev
+ libtheora-dev
+ libvorbis-dev
+ libxvidcore-dev
+ libx264-dev
+ libqt4-dev
+ libqt4-opengl-dev
+ sphinx-common
+ texlive-latex-extra
+ libv4l-dev
+ libdc1394-22-dev
+ libavcodec-dev
+ libavformat-dev
+ libswscale-dev
+ default-jdk
+ ant
+ libvtk5-qt4-dev
+
+# cat conf.sh
+ ./configure
+ --arch=x86_64
+ --enable-gpl
+ --enable-libmp3lame
+ --enable-libtheora
+ --enable-libx264
+ --enable-libxvid
+ --enable-nonfree
+ --enable-openal
+ --enable-pic
+ --enable-shared
+ --enable-version3
+ --enable-zlib
+ | tee log
+
+# conf.sh
+# make
+# make install
+できたみたい、試すと
+# ffplay tree.avi
+再生できてる:-)
+
+どんなモノができたのか？
+FFMPEGのコマンドIFはffmepg, ffplay, ffprobe, ffserverができている
+
+# readelf -d ffmpeg | grep Sh
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so.2]
+ 0x0000000000000001 (NEEDED)             Shared library: [libxcb.so.1]
+ 0x0000000000000001 (NEEDED)             Shared library: [libxcb-shm.so.0]
+ 0x0000000000000001 (NEEDED)             Shared library: [libxcb-xfixes.so.0]
+ 0x0000000000000001 (NEEDED)             Shared library: [libxcb-ape.so.0]
+ 0x0000000000000001 (NEEDED)             Shared library: [libSDL2-2.0.so.0]
+ 0x0000000000000001 (NEEDED)             Shared library: [libopenal.so.1]
+ 0x0000000000000001 (NEEDED)             Shared library: [libxvidcore.so.4]
+ 0x0000000000000001 (NEEDED)             Shared library: [libx264.so.142]
+ 0x0000000000000001 (NEEDED)             Shared library: [libtheoraenc.so.1]
+ 0x0000000000000001 (NEEDED)             Shared library: [libtheoradec.so.1]
+ 0x0000000000000001 (NEEDED)             Shared library: [libmp3lame.so.0]
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so.6]
+ 0x0000000000000001 (NEEDED)             Shared library: [liblzma.so.5]
+ 0x0000000000000001 (NEEDED)             Shared library: [libz.so.1]
+ 0x0000000000000001 (NEEDED)             Shared library: [libpthread.so.0]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]
+ 0x000000000000001d (RUNPATH)            Library runpath: [/usr/local/lib]
+外部ライブラリはダイナミックリンクで、ffmpeg本体はStaticリンクになってるみたい
+
+# find . -name \*.a
+./libavdevice/libavdevice.a
+./libavfilter/libavfilter.a
+./libpostproc/libpostproc.a
+./libswscale/libswscale.a
+./libavutil/libavutil.a
+./libavformat/libavformat.a
+./libswresample/libswresample.a
+./libavcodec/libavcodec.a
+# find . -name \*.so
+Sharedリンクライブラリは生成されず、Staticリンクライブラリのみ
+
+[■次にFFMPEGとOpenCVを一緒にビルド]
+作業中のOpenCVのディレクトリ(~/libs/opencv/build_x86_full)で、、、
+
+・cmake
+# cat cmake_x86_full.sh
+cmake \
+-D SOFTP=ON \
+-D CMAKE_BUILD_TYPE=Release \
+-D CMAKE_INSTALL_PREFIX=~/libs/opencv-3.2_x86_full/release/installed \
+-D OPENCV_EXTRA_MODULES_PATH=~/libs/opencv_contrib/modules \
+-D BUILD_SHARED_LIBS=ON \
+-D WITH_OPENCL=OFF \
+-D WITH_CUDA=OFF \
+-D BUILD_FFMPEG=ON \
+.. | tee log
+
+# cmake_x86_full.sh
+...
+--   GUI: 
+--     QT:                          NO
+--     GTK+ 2.x:                    YES (ver 2.24.23)
+--     GThread :                    YES (ver 2.40.2)
+--     GtkGlExt:                    NO
+--     OpenGL support:              NO
+--     VTK support:                 YES (ver 5.8.0)
+... 
+--   Video I/O:
+--     DC1394 1.x:                  NO
+--     DC1394 2.x:                  YES (ver 2.2.1)
+--     FFMPEG:                      YES
+--       avcodec:                   YES (ver 57.89.100)
+--       avformat:                  YES (ver 57.71.100)
+--       avutil:                    YES (ver 55.58.100)
+--       swscale:                   YES (ver 4.6.100)
+--       avresample:                NO
+--     GStreamer:                   NO
+--     OpenNI:                      NO
+--     OpenNI PrimeSensor Modules:  NO
+--     OpenNI2:                     NO
+--     PvAPI:                       NO
+--     GigEVisionSDK:               NO
+--     Aravis SDK:                  NO
+--     UniCap:                      NO
+--     UniCap ucil:                 NO
+--     V4L/V4L2:                    NO/YES
+--     XIMEA:                       NO
+--     Xine:                        NO
+--     gPhoto2:                     NO
+...
+gtkも入ってるね;-<
+# make
+# make install
+なんかコンパイルできた:-)
+動的ライブラリ
+
+[■OpenCV+FFMPEGアプリを試す]
+動画ファイルにcannyフィルタ掛けて動画ファイルに書き出すサンプル
+
+# cat main.cc
+
+#include <opencv2/opencv.hpp>
+int main()
+{
+    cv::VideoCapture capture("/home/kenji/libs/opencv/samples/cpp/tutorial_code/introduction/display_image/vv/Megamind.avi");
+    int width  = (int)capture.get(CV_CAP_PROP_FRAME_WIDTH);
+    int height = (int)capture.get(CV_CAP_PROP_FRAME_HEIGHT);
+    int count  = (int)capture.get(CV_CAP_PROP_FRAME_COUNT);
+    int fourcc = (int)capture.get(CV_CAP_PROP_FOURCC);
+    double fps = capture.get(CV_CAP_PROP_FPS);
+
+    cv::VideoWriter writer("out.avi", fourcc, fps, cv::Size(width, height), false);
+
+    while (true)
+    {
+        cv::Mat frame;
+        capture >> frame;
+        if (frame.empty())
+            break;
+
+        cv::Mat edge;
+        cv::Canny(frame, edge, 50, 150);
+
+        writer << edge;
+    }
+
+    return 0;
+}
+
+# cat Makefile
+
+$(shell export PKG_CONFIG_PATH=/home/kenji/libs/opencv-3.2_x86_full/release/installed/lib/pkgconfig)
+CVL = $(shell pkg-config --libs   opencv)
+CVC = $(shell pkg-config --cflags opencv)
+TGT = testgo
+C11 = -std=c++11
+
+$(TGT): main.o
+	g++ $^ -o $@ $(CVL)
+
+application.o:application.cc
+	g++ -c -fPIC $(C11) $< -o $@ $(CVC)
+
+sdlutil.o:sdlutil.cc
+	g++ -c -fPIC $(C11) $< -o $@ $(CVC)
+
+main.o:main.cc
+	g++ -c -fPIC $(C11) $< -o $@ $(CVC)
+
+clean:
+	rm -f *.o
+	rm -f $(TGT)
+
+# make clean ; make
+# ls out.avi
+# out.avi
+動画ファイルが出力されてる:-)
+
+# ffplay out.avi
+おおぉ～　Cannyフィルタでエッジ検出されてますね:-)
+
+x86版の動画扱いは成功
+※ただし、x86 Ubuntu14.04LTSにはV4L2がインストール済
+FFMpegではV4L2のインストールが前提だってことが後に分かった;-<
+
+[■x86版OpenCV+FFMPEG+SDL2アプリを試す]
+動画ファイルを読んでSDL2のフォーマットに変換してSDL2で画面表示するサンプル↓
+OpenCVとSDLを連携させてみた
+http://qiita.com/masaniwasdp/items/1c701db0de10812cd01e
+ファイルはコピペで
+main.cc application.cc application.h sdlutil.cc sdlutil.h
+
+フル版のx86用opencvとsdl2をリンクするMakefile
+# cat Makefile
+
+$(shell export PKG_CONFIG_PATH=/home/kenji/libs/opencv-3.2_x86_full/release/installed/lib/pkgconfig)
+CVL = $(shell pkg-config --libs   opencv)
+CVC = $(shell pkg-config --cflags opencv)
+SDL = $(shell pkg-config --libs   sdl2)
+SDC = $(shell pkg-config --cflags sdl2)
+TGT = testgo
+C11 = -std=c++11
+
+$(TGT): main.o application.o sdlutil.o
+	g++ $^ -o $@ $(SDL) $(CVL)
+
+application.o:application.cc
+	g++ -c -fPIC $(C11) $< -o $@ $(SDC) $(CVC)
+
+sdlutil.o:sdlutil.cc
+	g++ -c -fPIC $(C11) $< -o $@ $(SDC) $(CVC)
+
+main.o:main.cc
+	g++ -c -fPIC $(C11) $< -o $@ $(SDC) $(CVC)
+
+clean:
+	rm -f *.o
+	rm -f $(TGT)
+
+サンプルはC++11になってるんでオプション付ける(-std=c++11)
+
+
+# make
+# testgo Megamind.avi
+おおぉ～再生できてる:-)
+
+どんなモノができたのか
+#readelf -d testgo | grep Sh
+ 0x0000000000000001 (NEEDED)             Shared library: [libSDL2-2.0.so.0]
+ 0x0000000000000001 (NEEDED)             Shared library: [libopencv_videoio.so.3.2]
+ 0x0000000000000001 (NEEDED)             Shared library: [libopencv_core.so.3.2]
+ 0x0000000000000001 (NEEDED)             Shared library: [libstdc++.so.6]
+ 0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]
+SDL2とOpenCVはダイナミックリンクになっているけど、FFMPEG関係はここには現れない、、、OpenCVに入ったんだろう
+
+[■ARM版と機能を合わせたx86版なOpenCVライブラリ]
+ARM版のOpenCV+FFMPEGライブラリは、aac,x264,alsaなどの外部ライブラリを含まないBasic版
+同じ構成のx86版FFMPEGライブラリとそれを取り込んだOpenCVライブラリを作って機能の違いを試してみる
+
+・FFMPEGライブラリのビルドから
+
+# cat conf.sh
+./configure \
+ --arch=x86_64 \
+ --target-os=linux \
+ --enable-shared \
+ --prefix=/home/kenji/libs/ffmpeg_x86_basic | tee log
+
+# conf.sh
+logを見るとx264, lame, openalなどが外部ライブラリから消えたね:-)
+
+# make
+# make install
+
+・次にOpenCVライブラリのビルドで
+# cat cmake_x86+ffmpeg-gtk_basic.sh
+
+export PKG_CONFIG_PATH=/home/kenji/libs/ffmpeg_x86_basic/lib/pkgconfig/
+cmake \
+-D SOFTFP=ON \
+-D CMAKE_BUILD_TYPE=Release \
+-D CMAKE_INSTALL_PREFIX=~/libs/opencv-3.2_x86+ffmpeg-gtk_basic/release/installed \
+-D OPENCV_EXTRA_MODULES_PATH=~/libs/opencv_contrib/modules \
+-D BUILD_SHARED_LIBS=ON \
+-D WITH_OPENCL=OFF \
+-D WITH_CUDA=OFF \
+-D BUILD_FFMPEG=ON \
+-D WITH_GTK=OFF \
+-D WITH_GTK_2_X=OFF \
+-D WITH_VTK=OFF \
+-D WITH_GSTREAMER=OFF \
+.. | tee log
+
+# cmake_x86+ffmpeg-gtk_basic.sh
+ちゃんとFFMPEGが取り込まれているが、どこのpcが読まれたのか分からんな
+makeする際、PKG_CONFIG_PATHとLD_LIBRARY_PATHが必要
+※ldのmanページ読むと、リンクする際のサーチパスとしてLD_LIBRARY_PATHも使われるみたい
+
+# export PKG_CONFIG_PATH=/home/kenji/libs/ffmpeg_x86_basic/lib/pkgconfig/
+# export LD_LIBRARY_PATH=PKG_CONFIG_PATH=/home/kenji/libs/ffmpeg_x86_basic/lib/
+# make
+# make install
+
+以上でOpenCVのダイナミックライブラリ*.soができあがるが、スタティックライブラリ*.aは作られない
+スタティックライブラリも必要ならば別にビルドしてinstallする必要がある
+
+[■OpenCVの動画再生はFFMPEGとV4L2が担ってるんだね]
+FFMPEG自体が結構大きなシステムで、サーバ機能なんかもある
+
+arm版は大変だぁぞぉ～
+"FFMPEGのARM移植"に続く

@@ -1,0 +1,108 @@
+angstromでDHCP-IPなネットワーク設定を試す
+
+※
+connmanめんどくせぇ～、ハァはぁ;-<
+ふつぅーに、ifconfigを使ったIP固定設定では、Windows<=>DE10Nanoでx11が通らないとか問題でちゃう
+
+■結論
+ connmanctlは使わず、WindowsのLAN共有とudhcpcで解決した、？なんじゃこりゃ:=)
+
+■DE10Nano起動
+ DE10Nanoはterasic供給のOpenCL_BSPで起動、uname -r は、3.10.31-ltsi-05172-g28bac3e
+
+■Windows7 <=> DE10Nanoをイーサで接続
+
+■Windows7のネットワーク共有設定
+ ネットに出れるLANアダプタで[共有タブ]　ローカルエリア接続を選ぶ
+ これで、共有を使う側のLANアダプタのIPアドレスが、
+ 192.168.137.1
+ に設定された
+
+■DE10Nanoでudhcpc -i eth0
+ dhcpでeth0のIPアドレスを取得する
+ root@socfpga:~# udhcpc -i eth0
+ udhcpc (v1.22.1) started
+ run-parts: /etc/udhcpc.d/00avahi-autoipd exited with code 1
+ eth0: device MAC address fe:a6:97:14:6d:53
+ Sending discover...
+ libphy: stmmac-1:01 - Link is Up - 1000/Full
+ Sending discover...
+ Sending discover...
+ Sending select for 192.168.137.60...
+ Sending select for 192.168.137.60...
+ Sending select for 192.168.137.60...
+ Lease of 192.168.137.60 obtained, lease time 604800
+ run-parts: /etc/udhcpc.d/00avahi-autoipd exited with code 1
+ /etc/udhcpc.d/50default: Adding DNS 192.168.137.1
+
+ DE10Nanoからは、Windows側のLANアダプタIPアドレスがDHCPサーバに見えている
+ DHCPサーバの反応がとロい
+
+■ifconfigでeth0を確認
+ root@socfpga:~# ifconfig
+ eth0      Link encap:Ethernet  HWaddr fe:a6:97:14:6d:53
+          inet addr:192.168.137.60  Bcast:192.168.137.255  Mask:255.255.255.0
+          inet6 addr: fe80::fca6:97ff:fe14:6d53/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:647 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:659 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:75239 (73.4 KiB)  TX bytes:61252 (59.8 KiB)
+          Interrupt:152 Base address:0x8000
+
+■テスト
+★wget http://wwww.google.co.jp/
+index.htmlが戻ればOK
+
+※wgetは、バージョンによってhttpsに対応していない
+DE10Nanoのwgetの実体は、BusyBoxなのだが、これがhttps(SSL)に対応していない
+なので、https://なものではネットワーク疎通のテストにならない
+$ wget https://pjreddie.com/media/files/yolov3-spp.weights
+wget: not an http or ftp url: https://pjreddie.com/media/files/yolov3-spp.weights
+
+★opkgが動くか？
+ angstromはyoctoを使うらしく、yoctoはパッケージマネージャとしてokpgを採用しているから、angstromもopkg
+ opkgの使い方はaptやyumとほぼ同じ、opkg searchが正常に働かない問題はあるらしい
+ opkg update
+ opkg install
+ opkg remove
+ opkg search
+ opkg info
+ ...
+ .ipkがパッケージのサフィックスらしく、*feeds*とか言うyoctoのリポから読んでる
+ 似たようなパッケージマネージャがいっぱいあるけど、意味なし
+
+ export http_proxy=http://user:pass@proxy:8080/
+ export http_proxy=http://user:pass@proxy:8080/
+ opkg update
+ パッケージリストがダウンロードできてるみたい
+ okg install xeyes
+ なんかエラーでるけど、、、
+
+※proxy名からIPアドレス変換は、DNSを引かずに/etc/hostsに書く
+ IP-Address proxy nick-name
+
+★DE10Nano => Windows Xmingへx11の貼り付け
+ @Xming     xhost +192.168.137.60
+ @DE10Nano  export DISPLAY=192.168.137.1:0
+ @DE10Nano  hello-x
+ 張り付いた
+　+-----------------+
+  |X           _□×|
+　+-----------------+
+  |  Hello, World!  |
+  |                 |
+  |                 |
+  |                 |
+　+-----------------+
+ @DE10Nano  xeyes
+　+-----------------+
+  |X           _□×|
+　+-----------------+
+  | 　 /\     /\    |
+  |  /   \   /  \   |
+  | | ■  | | ■ |  |
+  |  \   /  \   /   |
+  |   \ /    \ /    |
+　+-----------------+
+ 張り付いた、、、install時のエラーはなんなのか？わからんが

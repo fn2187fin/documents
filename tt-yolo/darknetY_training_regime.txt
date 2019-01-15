@@ -1,0 +1,237 @@
+darknet training plan
+
+■Overview of train classifier and train detector with Float and Binary
+一般物体検出では、使用する特徴抽出層は別の分類タスクで学習
+分類タスクに用いるネットワークの学習は、224と448の2つの特徴マップサイズでFineTune学習
+分類タスクで作成したウェイトを用いて検出タスクネットワークを学習
+検出タスクネットワークでは、Multi Scale Trainingでネットワークサイズをランダムに変更しながら学習
+
+■アンサンブル学習
+個々に学習した複数の学習器を融合させて汎化能力（未学習データに対する予測能力）を向上させ、
+一つの学習器を作成すること
+
+■With Binary network
+分類ネットワークと検出ネットワークをBinaryで学習し、Floatでの学習結果と比較
+Binaryの学習regimeはFloatと同一
+
+■train classifier step.1
+分類タスクに用いるネットワークの学習は、224の特徴マップサイズでscratch学習
+データセットはImagenetの1000classes
+top1,5の確認
+
+■train classifier step.2
+分類タスクで学習したネットワークから最終層(分離タスクの層)を除いた層が特徴抽出層
+特徴抽出層のウェイトだけをファイルへセーブ
+特徴マップサイズを448へ変更した分類ネットワークを作成し、ファイルへセーブしたウェイトでFineTune
+データセットはImagenetの1000classes
+top1,5の確認
+学習後に、特徴抽出層のウェイトだけをファイルへセーブ
+
+■検出タスクの学習
+分類タスクのネットワークから最終層を検出層で置き換えて検出ネットワークとする
+特徴抽出層のウェイトを初期値として検出タスクを学習
+データセットはVOCの20classes(またはcocoの80classes)
+Floatネットワークとの検出精度比較
+
+■試行実施例 with Float network
+darknetのreferrenceの学習済ウェイトから検出タスクの学習
+$ wget http://pjreddie.com/media/files/darknet.weights
+
+１ 分類ウェイトの性能確認
+$ darknet_sdl]$ darknet classifier valid classifier.data darknet.cfg darknet.weights
+conv 8layer
+            W/H   top1    top5
+darknet     224   72.0    88.0
+darknet     256   74.3    88.1
+darknet     288   73.3    87.1
+darknet     320   75.2    84.2
+darknet     352   75.3    85.1
+darknet     384   71.3    81.1
+darknet     416   72.2    83.2
+darknet     448   58.4    79.0
+
+２ 検出タスクの学習
+network for detection is `darknetY.cfg`.
+
+darknet.cfgから10層までのウェイトを抜き出し
+$ darknet partial darknet.cfg darknet.weights darknet_conv10.weights 10
+
+darknetY.cfgの学習
+$ darknet detector train voc.data darknetY.cfg
+
+３ 結果
+2300epoch
+darknet detector recall voc.data darknetY.cfg DNY_VOC/darknetY_23000.weights
+99   144   261       RPs/Img: 69.11  IOU: 50.38%     Recall:55.17%
+
+            W/H   IoU   Recall
+darknetY    224   50.4    55.2
+darknetY    256   50.3    54.0
+darknetY    288   50.4    56.3
+darknetY    320   51.1    59.0
+darknetY    352   51.0    50.6
+darknetY    384   50.3    55.8
+darknetY    416   51.1    51.3
+darknetY    448   51.2    52.9
+
+※24000epoch以降、Multi Scale Trainingを使ったが失敗？
+(320~608,32) この値が大きすぎるのか？やるなら最初から適用せねばならんのか？
+
+■Binary networkでの学習
+■train binary classifier step.1
+■train binary classifier step.2
+■train binary detector
+
+■Binary化 計画と実績
+Binary化による分類精度と検出率低下を評価
+
+★浅いネットワークをBinary化
+darknet.cfg + darknetY.cfg
+※train-ds:Imagenet 379,317/VOC2012+2007
+※test-ds :Imagenet VOC2007
+
+type    task       train-ds test-ds   FM   top-1 top-5  detection(IOU/Recall)
+float   classifier Imagenet Imagenet  224  72.0% 88.0%  - Weights from HP 1000class
+float   classifier Imagenet Imagenet  448  58.4% 79.0%  - Weights from HP 1000class
+float   classifier Imagenet Imagenet  224  72.5% 90.1%  - by scratch 50class at 1175epoch(loss 0.058)
+float   classifier Imagenet Imagenet  224  62.2% 84.1%  - by scratch 500class on going 330epoch
+float   classifier Imagenet Imagenet  224  38.8% 62.8%  - by scratch 1000class best at 152epoch
+float   classifier Imagenet Imagenet  448  75.1% 94.3%  - own 50class ds by F.Tune with 448 from 1175weights.conv10 + 1200epoch(loss 0.058)
+float   classifier Imagenet Imagenet  224  71.0% 90.1%  - own 50class ds by F.Tune with 448 with 1175weights.conv10 by 224size
+float   detector   VOC      VOC2007   224  -     -      50.1% 55.2% by scratch
+float   detector   VOC      VOC2007   448  -     -      51.2% 52.9% only wide FM
+float   detector   VOC      VOC2007   224  -     -      51.1% 54.9% Ensamble(W from HP)  9.8@21kEpoch
+float   detector   VOC      VOC2007   224  -     -      49.6% 52.2% Ensamble(own W 50c) 13.1@36kEpoch
+binary  classifier Imagenet Imagenet  224  70.1% 90.0%  - by scratch 50class at 1175epoch
+binary  classifier Imagenet Imagenet  224  45.9% 70.5%  - by scratch 500class on going 239epoch, stop at 341epoch
+binary  classifier Imagenet Imagenet  224  29.1% 51.2%  - by scratch 1000class best at 226epoch
+binary  classifier Imagenet Imagenet  448  80.4% 95.2%  - F.Tune scaling with own 50class from 1175weights + 1300epoch(loss 0.036)
+binary  classifier Imagenet Imagenet  224  72.4% 89.9%  - validation by F.Tune own 50class with 1175weights by 224size
+binary  detector   VOC      VOC2007   224  -     -      47.7% 47.1% by scratch       11.1@31kEpoch unable classify!
+binary  detector   VOC      VOC2007   224  -     -      % Ensamble(W by train class & F.Tune)
+
+★深いネットワークをBinary化
+darknet19_448.cfg + yolov2-voc.cfg
+type    task       train-ds test-ds   FM   top-1 top-5  detection(IOU/Recall)
+float   classifier Imagenet Imagenet  224  90.0% 96.0%  - weigts from Web
+float   classifier Imagenet Imagenet  448  86.1% 95.0%  - weigts from Web
+float   detector   VOC      VOC2007   224  -     -      62.7% 73.3% weights from Web ←カメラ画像の目標値
+float   detector   VOC      VOC2007   416  -     -      74.4% 90.0% weights from Web
+binary  classifier Imagenet Imagenet  224  00.0% 00.0%  - by scratch 500class
+binary  classifier Imagenet Imagenet  448  00.0% 00.0%  - F.Tune scaling with own 500class
+binary  classifier Imagenet Imagenet  448  00.0% 00.0%  - validation by F.Tune own 500class
+binary  detector   VOC      VOC2007   224  -     -      00.0% 00.0%
+
+★ResNet50.cfg
+float   classifier Imagenet Imagenet  256  00.0% 00.0%  - by scratch 500class ロス発散、学習中止
+
+5/2nd-Week to 6/3rd-Week
+
+
+※ classification regime: "https://arxiv.org/pdf/1612.08242.pdf"より
+160epoch stochasitic gradient descent with starting learning rate of 0.1,
+polynomial rate decay with a power of 4
+weight decay 0.0005 and momentum 0.9
+initial training 224x224
+fine tuning only 10epoch and starting at a learning date of 10^-3(0.001)
+
+results : 76.5% and a top-5 accuracy of 93.3% on Darknet19
+
+■計算量-mAP(top1/5) Imagenet
+----------------------------------------------
+★Reference DS Imagenet-1000class Web Report
+▼Own DS Check Imagenet- 500class　▲On Going
+----------------------------------------------
+(mAP)
+.95|
+   |
+   |
+   |                                         RN50-76/93
+.80|                                         ★   ★RN15-78/94
+   |                                      D19-73/91
+   |                                 ★   ★     ★D19W-76/93
+   |                                 Ext-73/90
+.65|                    　　▼T5-66/86
+   |                         ★DN-61/83
+   |                               ★Alx-57/80
+   |
+.50|                   
+   |
+   |
+   |                    
+.35|
+   -----------------------------------------------------------------
+   0.01           0.1           1.0          10.0          100.0    (Bn)
+Alx : AlexNet                ( 2Bn 57/80)
+DN  : Darknet Referrence     (.8Bn 61/83)
+Ext : Extraction             ( 8Bn 72/90) for YOLOv1
+D19 : Darknet19              ( 5Bn 73/91)
+D19W: Darknet19-448          (22Bn 76/93) for YOLOv2
+RN50: ResNet50               (10Bn 76/93)
+RN15: ResNet152              (29Bn 78/94)
+
+T5  : TTT5_pre               (.7Bn 26/49) at  92epoch snapshot
+T5  : TTT5_pre               (.7Bn 47/71) at 141epoch
+T5  : TTT5_pre               (.7Bn 63/84) at 183epoch
+T5  : TTT5_pre               (.7Bn 66/86) at 212epoch(=final)
+T5S : TTT5_pre_224_160       (.5Bn 00/00) at  00epoch ▲学習中断 ウェイト保存されない不具合
+
+※imagenet_masterの内容がtesla-v100とulpc-05988で、学習対象のクラス内容が異なる
+  (darknet.labels_500c.txtの内容が違う)
+  tesla-v100で学習しulpc-05988でテストすると、classifierの精度評価値が大きく変わる
+
+■計算量-mAP(mAP/Recall) VOC2007
+--------------------------
+★Ref. VOC2007 Web Report
+▼Own DS Check　▲On Going
+--------------------------
+(mAP)
+.95|
+   |
+   |
+   |                   
+.80|                   
+   |                                             Y2-77    
+   |　　　　　　　　　　　　             　　　　★ ★Y2W-78 
+   |                   
+.65|                                              ★Y1-63
+   |                                  ★TY-57
+   |                                                  
+   |                               ▲T5V-56
+.50|                   ▲▲T5-50
+   |                   T5M-50
+   |
+   |
+.35|
+   -----------------------------------------------------------------
+   0.01           0.1           1.0          10.0          100.0    (Bn)
+
+	Model 		Train 		Test 	mAP/RC	 	FLOPS
+Y1 :Old YOLO(v1) 	VOC 2007+2012 	2007 	63.4 		40.19Bn
+Y2 :YOLOv2	 　	VOC 2007+2012 	2007 	76.8 		34.90Bn
+Y2W:YOLOv2 544x544 	VOC 2007+2012 	2007 	78.6 		59.68Bn
+TY :Tiny YOLO(v2) 	VOC 2007+2012 	2007 	62.0/77  	 6.97Bn
+TYV:Tiny YOLO 352x288	VOC 2007+2012 	2007 	56.0/64  	 4.08Bn train from Scratch
+TYV:Tiny YOLO 352x288	VOC 2007+2012 	2007 	60.4/72  	 4.08Bn FTune form darknet_conv12.weights
+
+T5 :ttt5 at Rect224x224	VOC 2007+2012   2007    49.8/53    	 0.64Bn # FTune from ttt5_141_conv7
+T5V:ttt5 at VGA 288x352	VOC 2007+2012   2007    55.2/64    	 1.29Bn # FTune from ttt5_141_conv7
+T5V:ttt5 at VGA 288x352	VOC 2007+2012   2007    55.0/64    	 1.29Bn # FTune from ttt5_pre_final_conv7
+T5S:ttt5 at VGA 198x256	VOC 2007+2012   2007    46.7/46    	 0.64Bn # FTune from ttt5_141_conv7
+T5M:ttt5 at VGA 224x160	VOC 2007+2012   2007    49.8/53    	 0.46Bn # FTune from ttt5_141_conv7
+
+■抽出課題＆考察
+Imagenetの分類タスク学習は60epoch/24h@v100な学習速度、160epochでは64h(3days!)
+
+★浅いネットワークをBinary化
+①Binaryでの分類タスクの精度が最悪
+　Floatネットワークでは分類できる"person"もBinaryネットワークではすべて"aeroplane"
+　Binaryでは常にindex==0のclass probablityだけが値を持つ⇒学習パラメータ変更で効果あるか？⇒学習が発散する
+
+②分類タスクの検証機能がDarknetには無い
+  recallで検証されるタスクは"detection"のみ
+
+★t5系
+①長方形特徴マップの効果
+　VOC2007でのテストは正方形に比べて良好
+②長方形特徴マップを適用したt5系全般での検出率低下原因は、物体の重なりに弱いこと

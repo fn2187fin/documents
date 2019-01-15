@@ -1,0 +1,22 @@
+[■x86版Ubuntuで、OpenCVにPythonサポートを入れるには]
+OpenCV3.x(cv2.so)をPythonサポートとGTK+で作る方法
+
+# aptitude install libpython2.7-dev python2.7-dev python3-dev python-numpy python2.7-numpy python3-numpy　libgtk2.0-dev
+なんかを入れておかないとcmakeでpythonサポートが有効にならないみたい
+つまりpythonのdevとnumpy、そしてgtkのdev
+
+# cat cmake_x86.sh
+
+export PKG_CONFIG_PATH=/home/kenji/libs/ffmpeg_x86+x264/lib/pkgconfig/
+cmake \
+-D CMAKE_BUILD_TYPE=Release \
+-D OPENCV_EXTRA_MODULES_PATH=~/libs/opencv_contrib/modules \ -D BUILD_SHARED_LIBS=ON \ -D BUILD_NEW_PYTHON_SUPPORT=ON \ -D BUILD_PYTHON_SUPPORT=ON \ -D WITH_OPENCL=OFF \ -D WITH_CUDA=OFF \ -D BUILD_FFMPEG=ON \ -D WITH_GTK=ON \ -D WITH_GTK_2_X=ON \ -D WITH_VTK=OFF \ .. | tee log
+
+# source ./cmake_x86.sh
+標準のprefix=/usr/libへインストール　;-<　コワ！
+
+# make
+# make install
+
+cv2.soが/usr/lib/python2.7/dist-package/cv2.so
+に入りました、これでGTKでウィンドウが張れた:-)

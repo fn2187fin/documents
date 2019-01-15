@@ -1,0 +1,190 @@
+[■超簡単なXクライアントをコンパイルしてarmで動かそう]
+
+簡単なXクライアントとして、X11-Toolkitを使わないものを使う↓
+"Xプログラミング"
+https://ja.wikibooks.org/wiki/X%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%9F%E3%83%B3%E3%82%B0
+100x100のウィンドウを白(0xffffff)で塗りつぶすプログラム
+
+# cat main.c
+
+#include <X11/Xlib.h>
+int main (){
+        Display *dpy = XOpenDisplay (NULL);
+        Window win = XCreateSimpleWindow(dpy, DefaultRootWindow(dpy),0,0,100,100,0,0,0xffffff);
+        XMapWindow(dpy, win);
+        XFlush(dpy);
+        while(1);
+        return 0;
+}
+
+ソースはこんだけぇ～
+
+[■コンパイル]
+コマンドは↓
+# arm-linux-gnueabihf-gcc main.c -o main -I/usr/include -lX11
+当然エラー
+
+libX11が必要なんだろうな、当然
+で、libX11の依存関係を調べる
+まずは、正式なパッケージ名は、
+# aptitude search libX11
+ほぉlibX11-6なのね、、、で、その依存関係は
+# apt-rdepends libX11-6
+libc6
+libgcc1
+gcc-4.9-base
+multiarch-support
+libx11-data
+libxcb1
+libxau6
+libxdmcp6
+とか出てくるから、これらをftp.jp.debian.org/debian/pool/main/から探してダウンロード、展開
+まとめると以下のスクリプトになった
+
+#! /bin/bash -e
+rm -f *.deb
+rm -fr usr lib
+
+debget()
+{
+for deb in $DEBs
+do
+	echo ${WEB}/$deb
+	wget ${WEB}/$deb
+	echo dpkg --extract $deb .
+	dpkg --extract $deb .
+done
+}
+
+# .so.x.x.x and .so.x
+WEB=http://ftp.jp.debian.org/debian/pool/main/libx/libx11/
+DEBs=" libx11-6_1.6.4-3_armhf.deb libx11-data_1.6.4-3_all.deb "
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/libb/libbsd/
+DEBs=" libbsd0_0.8.5-1_armhf.deb "
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/libx/libxau/
+DEBs=" libxau6_1.0.8-1_armhf.deb "
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/libx/libxcb/
+DEBs=" libxcb1_1.12-1_armhf.deb "
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/libx/libxdmcp/
+DEBs=" libxdmcp6_1.1.2-3_armhf.deb "
+debget
+
+WEB=http://security.debian.org/debian-security/pool/updates/main/g/glibc/
+DEBs=" multiarch-support_2.19-18+deb8u10_armhf.deb "
+debget
+
+WEB=http://ftp.cl.debian.org/debian/pool/main/libx/libxext/
+DEBs="libxext6_1.3.3-1_armhf.deb"
+debget
+
+cp -R lib/arm-linux-gnueabihf/* usr/lib/arm-linux-gnueabihf/
+rm -fr lib
+
+# .so and .a
+WEB=http://ftp.jp.debian.org/debian/pool/main/libx/libx11/
+DEBs="libx11-dev_1.6.4-3_armhf.deb "
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/libx/libxcb/
+DEBs="libxcb1-dev_1.12-1_armhf.deb " 
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/libb/libbsd/
+DEBs="libbsd-dev_0.8.5-1_armhf.deb "
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/libx/libxau/
+DEBs="libxau-dev_1.0.8-1_armhf.deb "
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/libx/libxdmcp/
+DEBs="libxdmcp-dev_1.1.2-3_armhf.deb "
+debget
+
+WEB=http://ftp.cl.debian.org/debian/pool/main/libx/libxext/
+DEBs="	libxext-dev_1.3.3-1_armhf.deb "
+debget
+
+cd usr/lib/arm-linux-gnueabihf/
+ls -l libbsd.so
+rm -f libbsd.so
+ln -s libbsd.so.0.8.5 libbsd.so
+ls -l libbsd.so
+
+# ./debX11.sh
+これで./usr/以下にarmhfのライブラリが展開される
+
+*.debは実行時に必要なパッケージなので、*.so.xと*.so.x.x.xが入っている
+実体な*.so.x.x.xとsonameな*.so.x
+
+*-dev*debは開発用のパッケージなので、*.soと*.h、*.pcが入っている
+リンク名とヘッダ、pkg-config環境
+
+# arm-linux-gnueabihf-gcc main.c -o main -I/usr/include -L./usr/lib/arm-linux-gnueabihf \
+  -lX11 -lxau -lxcb -lxdmcp -lbsd
+っで、コンパイルは通った
+
+んでMakefile↓
+# cat Makefile
+main:main.o
+	arm-linux-gnueabihf-gcc $^ -o $@ -L/home/ogura/X11/usr/lib/arm-linux-gnueabihf/ -lX11 -lxcb -lXau -lXdmcp -lbsd
+main.o:main.c
+	arm-linux-gnueabihf-gcc -c -fPIC $< -o $@ -I/usr/include/
+
+# readelf -d main
+ 0x00000001 (NEEDED)                     Shared library: [libX11.so.6]
+ 0x00000001 (NEEDED)                     Shared library: [libxcb.so.1]
+ 0x00000001 (NEEDED)                     Shared library: [libXau.so.6]
+ 0x00000001 (NEEDED)                     Shared library: [libXdmcp.so.6]
+ 0x00000001 (NEEDED)                     Shared library: [libbsd.so.0]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so.6]
+な依存関係なんで、~/X11/usr/lib/arm-linux-gnueabihf/以下を丸ごとDE0へ転送すれば動くかもしれない:-)
+
+[■DE0へ転送して起動]
+X11/usr/lib/arm-linux-gnueabihf/以下とmainをDE0の/tmp/以下に転送
+# cd /tmp
+# chmod +x main
+# export LD_LIBRARY_PATH=/tmp
+# X &
+# export DISPLAY=":0"
+# ../main
+
+でましたぁ～ウィンドウ:-)
+XCreateSimpleWindow(dpy, DefaultRootWindow(dpy),x,y,width,height,borderWidth,boderColer,windowColor);
+WindowManagerがいないので、左上が(0,0)で右下に向かう座標系で描画されてますね
+
+[■/libをX11で整備 失敗？]
+DE0はデフォルトで/lib/以下の.soを読むらしいのでそこへX11関係の.soを置いておきます
+これでLD_LIBRARY_PATH設定無しで、./mainが動きましたね
+※
+ここで/lib以下へ転送したlibX*やlibbsd, libgcc_s*が悪さをしているのか？
+SDL2サンプルがnot found video deviceで動かなくなる
+mandelbrotのデモも動かなくなる;-<
+追加した/lib/以下のライブラリを消去するとデモが動くようになった
+
+[■あらためて/usr/libをX11で整備]
+DE0のbuildrootでX11関係のライブラリは、/usr/lib/以下にある
+ただし、libbsd*が無い(?)
+なので、Ubuntuホストでビルドしたアプリを動かすためにlibbsd.so*が必要になってしまう
+libbsd.so.0.8.5をDE0以下へコピーして必要なシンボリックリンクを張る
+# cp libbsd.so.0.8.5 /usr/lib
+# cd /usr/lib
+# ln -s libbsd.so.0.8.5 libbsd.so.0
+# ln -s libbsd.so.0.8.5 libbsd.so
+
+libbsd.soはリンク名なのでコンパイルしなければ不要だが一応コピーしておいた
+
+# /tmp/easyX11
+ふぅ～ん、白いウィンドウが張れました:-)
+
+[■ブラックアウトする？]
+しばらく画面を放置しておくと、、ブラックアウトするみたいだな;-<
+何だろう、もしやscreenセーバー？:^)

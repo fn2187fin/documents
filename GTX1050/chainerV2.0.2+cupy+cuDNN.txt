@@ -1,0 +1,34 @@
+chainer v1.24.0+cupy+cuDNN@Windows7は容易にインストールできたので
+
+[■入れてみる]
+cuDNNはchainer v1.24.0+cupu+cuDNN@Windows7でインストール済
+
+chainer v2.0.2では、cupy -> chainerの順でpipインストールが必要
+Cmderから
+
+chainer V2.0.2用に環境を作る
+$ conda create -n py27_ch202 python=2.7 anaconda
+$ source activate py27_ch202
+
+cupyを入れる
+$ pip install cupy
+エラー！;-<
+Unsupported OSとか言ってるのでcmd.exeから
+
+エラー！;-<
+cl.exeがfailする
+Visual Studio Community 2013なので2015 Communityに入替える
+
+インストール確認には、二つのチェックがある
+第1チェックはcupy、第2チェックはcuDNN
+
+[■第一チェック]
+
+import chainer
+from chainer import cuda
+xp = cuda.cupy
+
+[■第二チェック]
+x = xp.asarray([[1, 2, 3], [4, 5, 6]], dtype=np.float32)
+y = cuda.elementwise('T x','T y','y = x + 1;','sample1_fwd',)(x)
+

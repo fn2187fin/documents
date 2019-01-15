@@ -1,0 +1,10 @@
+x86_64なバーガーPCにCentOS載せてOpenCV
+
+https://qiita.com/zkangaroo/items/2f1e3e7b733a07440ef7
+↑ここに従うけど
+
+[■OpenCVダウンロード]
+# cd /usr/local/src
+# git clone https://github.com/opencv/opencv.git
+# git clone https://github.com/opencv/opencv_contrib.git
+

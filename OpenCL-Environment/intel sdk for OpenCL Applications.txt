@@ -1,0 +1,28 @@
+Intel SDK for OpenCL Applications
+IntelマシーンをOpenCLのdeviceとして動かすための環境
+
+■入れようとしたが、
+もはやOpenCL環境は一般的で、aptやyumでインストールできるらしい
+さらにteslaマシーンにはCUDAをインストールしてあるので、CUDAのOpenCL環境が使えたりする
+なので、teslaでサンプルを取って、
+$ git clone https://github.com/ysh329/OpenCL-101
+$ cd OpenCL-101/hello_world
+
+$ gcc hello.c -I/usr/local/cuda-9.0/include/ -L/usr/local/cuda-9.0/lib64/ -lOpenCL -o hello
+$ ./hello
+
+GPUが動いてる！
+runtime環境は
+$ echo $LD_LIBRARY_PATH 
+:/usr/local/cuda/lib64/:/lib:/usr/local/lib:/usr/lib64
+CUDA runtimeが/usr/local/cuda/lib64/以下に入っている
+
+(Intel+CentOS)+GTX1080+CUDAとしてOpenCLヘテロ環境が動いたことになる
+
+■一応、Intel SDK for OpenCL Applicationsを入れてみる↓
+
+ダウンロード
+https://software.intel.com/en-us/intel-opencl
+↑ここからダウンロード
+
+

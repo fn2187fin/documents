@@ -1,0 +1,175 @@
+■terasicからはlinux_opencl_BSPで使われているlinux sourceが提供されないので探す
+探すのはコレ↓
+DE10Nano:Linux socfpga 3.10.31-ltsi-05172-g28bac3e #49 SMP Fri Jan 20 10:36:10 CST 2017 armv7l GNU/Linux
+ちなみに↓
+DE1SoC  :Linux linaro-ubuntu-desktop 3.12.0-00307-g507abb4-dirty
+
+探す場所は↓
+linux-socfpga: https://github.com/altera-opensource/linux-socfpga.git
+linux-yocto  : https://git.yoctoproject.org/linux-yocto
+altcrauer    : https://github.com/altcrauer/linux.git
+
+repositoryを取ってきて、
+$ git branch -a
+$ git tag -l
+で中身を調べるが、もはや3.10.31とか3.x-ltsiなどはltsiでなくなったのでtagやbranchからltsiは消えているらしい
+使えるのは、socfpgaXXXXなど必ず`socfpga`と名づけられたモノだけ
+
+■結論：linux kernel sourceの探し方
+branchやtagは消えてしまうから、branch名やtag名を頼りにcheckoutして起動してみること
+make zImageだけではなく、カーネルに合わせたdtbをmake xxxx.dtb(arch/arm/boot/dts/xxxx.dtsを頼りにして)再作成すること
+zImageとdtbを書き換えてブートすること
+今回、DE0Nanoで使われていたsocfpga-3.10.31-ltsiを探した
+
+$ git clone https://github.com/altcrauer/linux.git
+$ git checkout socfpga-3.10-ltsi_de0_nano_with_tft
+$ export ARCH=arm
+$ export CROSS_COMPILE=arm-linux-gnueabihf-
+$ make socfpga_defconfig
+$ make menuconfig               // for check
+$ make ARCH=arm LOCALVERSION= zImage
+$ make socfpga_de0_nano.dtb
+これで生成されるzImageとsocfpga_de0_nano.dtbをDE10Nanoへ転送
+$ mount /dev/mmcblk0p1 /mnt     // mmciblk0p1 is for U-boot area
+$ cp zImage /mnt
+$ cp socfpga_de0_nano.dtb /mnt/socfpga.dtb
+$ sync
+$ reboot
+$ uname -r                      // 3.10.31-ltsi happy!
+
+de10nano付属のopenclドライバー(alcsoc_drv.ko)をrecompileすること(kernel 4.xxではコンパイルエラーとなる)
+$ make KDIR=<path/linux/source>
+
+■片っ端から動かすしかないなぁ、、やってみる
+
+LS:linux-socfpga
+AC:alcrauer
+LY:linux-yocto
+DC:Intel Download Center for DE10-Nano
+IK:ikwzm/FPGA-SoC-Linux
+
+o : 問題無し
+- : menuconfigで外した
+X : エラー出て使用できず
+? : 試せず
+x : エラーだが使用できる
+
+   uname -r                              Config             boot CAN  eth0   MMC  OpenCL
+LY 3.19.0-rc7                            socfpga_defconfig  o      -     X     o       ?
+   4.9.78-ltsi-06721-gda71e4b            de10_config        o      -     o     x       ?
+AC socfpga-3.10-ltsi_de0_nano_with_tft   socfpga_defconfig  o      -     o     o       ? LBDAF=on/socfpga_de0_nano.dtb※
+AC socfpga-3.13_cubic                    socfpga_defconfig  X kenrel panic!
+LS v3.11-rc7                             socfpga_defconfig  X freezed
+LS v3.12-rc7                             socfpga_defconfig  X freezed
+LS v3.15-rc8                             socfpga_defconfig  X kenrel panic!
+LS v3.17-rc7                             socfpga_defconfig  o      -  kernel panic!
+LS v3.19-rc7                             socfpga_defconfig  o      -     X     o       ?
+LS v4.5-rc7                              socfpga_defconfig  o      -     o     o       X CAN=off/LBDAF=on
+DC socfpga-4.1.33-ltsi                   socfpga_defconfig  o      -     X     o       X
+IK linux-4.14.34-armv7-fpga           armv7_fpga_defconfig  o      o     o     o
+
+※kernelに合わせて、dtbを再作成することが必須らしい
+$ make zImage
+$ make socfpga_de0_nano.dtb
+arch/arm/boot/dtb/*.dtbが出来る
+zImageとsocfpga.dtbが不整合だとkernel freezeする(?)らしい
+
+■FPGAシステム
+△terasic提供のオリジナルBSP
+root@socfpga:~# uname -a 
+Linux socfpga 3.10.31-ltsi-05172-g28bac3e #49 SMP Fri Jan 20 10:36:10 CST 2017 armv7l GNU/Linux
+
+root@socfpga:~# ls /sys/class/fpga-bridge
+fpga2hps  hps2fpga  lwhps2fpga
+root@socfpga:~# ls /sys/class/fpga       
+fpga0
+ブリッジができてる
+
+root@socfpga:~# dmesg|grep fpga
+[    0.211427] fpga bridge driver
+[    0.217843] altera_hps2fpga_bridge fpgabridge.2: fpga bridge [hps2fpga] registered as device hps2fpga
+[    0.217853] altera_hps2fpga_bridge fpgabridge.2: init-val not specified
+[    0.218022] altera_hps2fpga_bridge fpgabridge.3: fpga bridge [lshps2fpga] registered as device lwhps2fpga
+[    0.218031] altera_hps2fpga_bridge fpgabridge.3: init-val not specified
+[    0.218200] altera_hps2fpga_bridge fpgabridge.4: fpga bridge [fpga2hps] registered as device fpga2hps
+[    0.218209] altera_hps2fpga_bridge fpgabridge.4: init-val not specified
+[    0.743619] altera_fpga_manager ff706000.fpgamgr: fpga manager [Altera FPGA Manager] registered as minor 0
+[    1.784614] dwmmc_socfpga ff704000.dwmmc0: Using internal DMA controller.
+[    1.790102] dwmmc_socfpga ff704000.dwmmc0: Version ID is 240a
+[    1.794627] dwmmc_socfpga ff704000.dwmmc0: DW MMC controller at irq 171, 32 bit host data width, 1024 deep fifo
+[    1.834753] dwmmc_socfpga ff704000.dwmmc0: 1 slots initialized
+[    2.385643] systemd[1]: Set hostname to <socfpga>.
+
+△ikwzm(Ichiro KAWAZOME)
+https://github.com/ikwzm
+root@socfpga:~# uname -a
+Linux socfpga 4.14.34-armv7-fpga-00001-gdf89b8c #1 SMP PREEMPT Sun Sep 2 21:55:31 JST 2018 armv7l GNU/Linux
+
+root@socfpga:~# ls /sys/class/fpga*
+/sys/class/fpga_bridge:
+br0  br1  br2
+/sys/class/fpga_manager:
+fpga0
+/sys/class/fpga_region:
+region0
+ブリッジができてる、けど名前が変わってる
+kernel 4.xではDevice Tree Overlayとかを使うらしく、/sys以下の名前や構造も変わっている;-<
+
+root@socfpga:~# dmesg|grep fpga
+[    0.214535] fpga-region soc:fpga-region0: FPGA Region probed
+[    0.964243] socfpga-dwmac ff702000.ethernet: PTP uses main clock
+[    0.970334] socfpga-dwmac ff702000.ethernet: Ring mode enabled
+[    0.976178] socfpga-dwmac ff702000.ethernet: DMA HW capability register supported
+[    0.983656] socfpga-dwmac ff702000.ethernet: Enhanced/Alternate descriptors
+[    0.990606] socfpga-dwmac ff702000.ethernet: Extended descriptors not supported
+[    0.997887] socfpga-dwmac ff702000.ethernet: RX Checksum Offload Engine supported
+[    1.005359] socfpga-dwmac ff702000.ethernet: COE Type 2
+[    1.010579] socfpga-dwmac ff702000.ethernet: TX Checksum insertion supported
+[    1.306309] fpga_manager fpga0: Altera SOCFPGA FPGA Manager registered
+[    1.313435] altera_hps2fpga_bridge ff400000.fpga_bridge: disabling bridge
+[    1.320359] altera_hps2fpga_bridge ff400000.fpga_bridge: fpga bridge [lwhps2fpga] registered
+[    1.329040] altera_hps2fpga_bridge ff500000.fpga_bridge: enabling bridge
+[    1.335880] altera_hps2fpga_bridge ff500000.fpga_bridge: fpga bridge [hps2fpga] registered
+[    1.347426] altera_hps2fpga_bridge ff600000.fpga_bridge: fpga bridge [fpga2hps] registered
+[    1.851578] systemd[1]: Set hostname to <socfpga>.
+[   14.222889] socfpga-dwmac ff702000.ethernet eth0: device MAC address 6a:3f:53:3c:41:46
+[   14.350253] socfpga-dwmac ff702000.ethernet eth0: registered PTP clock
+[   16.401535] socfpga-dwmac ff702000.ethernet eth0: Link is Up - 100Mbps/Full - flow control off
+
+△Mandelbrot Demoで使われているモノ
+
+branchは、socfpga-3.10-ltsi_de0_nano_with_tftだけど、なんとunameは3.10.31-ltsiだった！
+root@socfpga:~# uname -a
+Linux socfpga 3.10.31-ltsi #1 SMP Mon Sep 3 18:44:47 JST 2018 armv7l GNU/Linux
+
+root@socfpga:~# dmesg|grep fpga
+[    0.213621] fpga bridge driver
+[    0.220132] altera_hps2fpga_bridge fpgabridge.2: fpga bridge [hps2fpga] registered as device hps2fpga
+[    0.220142] altera_hps2fpga_bridge fpgabridge.2: init-val not specified
+[    0.220304] altera_hps2fpga_bridge fpgabridge.3: fpga bridge [lshps2fpga] registered as device lwhps2fpga
+[    0.220313] altera_hps2fpga_bridge fpgabridge.3: init-val not specified
+[    0.220481] altera_hps2fpga_bridge fpgabridge.4: fpga bridge [fpga2hps] registered as device fpga2hps
+[    0.220489] altera_hps2fpga_bridge fpgabridge.4: init-val not specified
+[    0.777446] altera_fpga_manager ff706000.fpgamgr: fpga manager [Altera FPGA Manager] registered as minor 0
+[    1.799030] dwmmc_socfpga ff704000.dwmmc0: couldn't determine pwr-en, assuming pwr-en = 0
+[    1.806085] dwmmc_socfpga ff704000.dwmmc0: Using internal DMA controller.
+[    1.811568] dwmmc_socfpga ff704000.dwmmc0: Version ID is 240a
+[    1.816125] dwmmc_socfpga ff704000.dwmmc0: DW MMC controller at irq 171, 32 bit host data width, 1024 deep fifo
+[    1.857074] dwmmc_socfpga ff704000.dwmmc0: 1 slots initialized
+[    2.617980] systemd[1]: Set hostname to <socfpga>.
+
+root@socfpga:~# ls /sys/class/fpga*
+/sys/class/fpga:
+fpga0
+/sys/class/fpga-bridge:
+fpga2hps  hps2fpga  lwhps2fpga
+ブリッジができてる
+
+■エラー状況
+(1) freezed
+(2) kernel panic!
+(3) CAN interface driver
+[    0.792580] CAN device driver interface でフリーズ
+(4) stmmac
+(5) ro
+

@@ -1,0 +1,173 @@
+DE10Nanoの立ち上げ一式のガイドがある↓
+https://bitlog.it/hardware/building-embedded-linux-for-the-terasic-de10-nano-and-other-cyclone-v-soc-fpgas/
+
+★buildrootには、Xorg, opencv, busybox, gtk+, ffmpegなど多彩なパッケージが含まれている
+ ARM用に個別にビルドするより簡単
+※クセが多い
+
+■結論
+ hostでクロスコンパイラをコンパイル(arm-buildroot-linux-gnueabihf-gccを生成)して使用し、arm用の各種ライブラリなどを生成する
+ arm用のnative-gccは含まれないので、arm上のnativeなコンパイル環境は作れず、アプリはhost上でクロスコンパイルすることになる
+ Webのガイドに従えば複雑なライブラリなどを使わない簡単なCベースのクロスコンパイルはできるし、arm上でも動く
+ opencv, ffmepg, gtk2+, v4l, SDLなどビルドできるが、細かな指定はできない
+ pkg-configはbuildrootが生成する
+ ビルドした各種ライブラリ間で整合性が取れていないので、opencv+ffmpeg+gtk2+など依存ライブラリの多いものなどは、リンクが通らない
+
+★ランタイムライブラリはビルドできるが、それを用いたクロスコンパイル環境を作る方法が不明でした、、使えない
+
+■！！環境に注意すること！！
+環境変数のサニティチェックは厳格
+PATH
+LD_LIBRARY_PATH
+LIBRARY_PATH
+PYTHONPATH
+::や:.:、:./:が入ったり、:で始まるとか終わってはダメ
+PYTHONPATHは正しく設定すること
+
+■Step.6以降にLinuxの立ち上げガイドがある
+これに従って試す DS-5のSHELL環境に入って以下作業
+
+$ git clone https://github.com/altera-opensource/linux-socfpga.git
+$ cd linux-socfpga
+$ git tag -l rel_socfpga*
+最新辺りを適当に選ぶ
+
+$ git checkout rel_socfpga-4.15_18.02.01_pr
+$ git branch
+* (detached from rel_socfpga-4.15_18.02.01_pr)
+  master
+$ export ARCH=ARM
+$ export CROSS_COMPILE=arm-linux-gnueabihf
+$ make menuconfig
+
+First go to General setup and uncheck Automatically append version information to the version string option. 
+The second change we will make can be found in Enable the block layer and is called Support for large (2TB+) block devices and files.
+
+バージョン違いのドライバーを読み込むためにAutomatically append version informationを外す 超重要！
+2番目は不要だけどね
+↑メニュー設定して終了しコンパイル
+
+$ make ARCH=arm LOCALVERSION= zImage
+成功
+
+■Step.7以降にroot file systemの立ち上げガイドがある
+これに従ってrootfsのコンパイルを試す
+CentOSでの作業は、buildrootのmake
+DE10NanoをLinux-Consoleで立上げて、出来上がったbusyboxなんかを転送して動作チェック
+
+※コンパイラはarm-buildroot-linux-gnueabihf-gccなどをホストgccでコンパイルして使うらしい
+※make ARCH=ARM -C buildroot/ allで、ARCH=ARMではARM-buildroot-linux-gnueabihf-gccを探して、ビルドがコケる
+※make ARCH=arm -C buildroot/ allで、ARCH=armではarm-buildroot-linux-gnueabihf-gccがありビルドできる
+※export ARCH=armや、export CROSS_COMPILE=arm-linux-gnueabihfは不要だろう
+※i-node 32bit超(too large error)問題が発生する場合がある
+
+■rootfs.tarをコンパイル
+$ git clone git://git.buildroot.net/buildroot
+$ cd buildroot
+
+tagを確認
+$ git tag -l |grep 2018
+2018.02
+2018.02-rc1
+2018.02-rc2
+2018.02-rc3
+2018.02.1
+2018.02.2
+2018.02.3
+2018.02.4
+2018.05
+2018.05-rc1
+2018.05-rc2
+2018.05-rc3
+2018.05.1
+2018.08-rc1
+
+最新から少し前をcheckoutして使う
+$ git checkout 2018.05-rc3
+$ cd ..
+
+Configuring Buildroot
+$ make -C buildroot nconfig
+これでncursesベースのコンフィグメニューが開くので、最低限の変更をする
+
+    Target Architecture: ARM (little endian)
+    Target Architecture Variant: cortex-A9
+    Enable NEON SIMD extension support (NEW): Enable
+    Enable VFP extension support (NEW): Enable
+    Target ABI: EABIhf
+    Floating point strategy: NEON
+
+               Toolchain type (Buildroot toolchain)  --->                     │
+ │             *** Toolchain Buildroot Options ***                            │
+ │             (buildroot) custom toolchain vendor name                       │
+ │             C library (glibc)  --->                                        │
+ │             *** Kernel Header Options ***                                  │
+ │             Kernel Headers (Linux 4.16.x kernel headers)  --->             │
+ │             *** Binutils Options ***                                       │
+ │             Binutils Version (binutils 2.29.1)  --->                       │
+ │             ()  Additional binutils options                                │
+ │             *** GCC Options ***                                            │
+ │             GCC compiler Version (gcc 6.x)  --->                           │
+ │             ()  Additional gcc options                                     │
+ 
+↑Webに従う設定だとコンパイルが通らないので、↑これに変更してコンパイルを通した
+
+Configuring busybox
+$ make -C buildroot busybox-menuconfig
+LD_LIBRARY_PATHがどうのこうのと言われる、、、LD_LIBRARY_PATHに .: とかがダメらしいので、LD_LIBRARY_PATHを修正
+
+$ make ARCH=arm -C buildroot all
+PATH変数の設定がどうのこうと言われる、、、PATHに、:: とか :.: とか :./: とかはダメらしいので、PATHを修正
+
+これで、make -C buildroot allが通り、出来上がったbusyboxオブジェクトなどを調べると、
+
+$ file buildroot/output/build/busybox-1.28.4/busybox
+buildroot/output/build/busybox-1.28.4/busybox: ELF 32-bit LSB executable, ARM, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 4.16.0, not stripped
+
+ARMバイナリとして出来上がっている。
+
+■色々なPackageを試す、、、特にlibgtk+、ffmpeg、OpenCV
+make -C buildroot/ nconfigで、switchを弄ると、X11やlibgtkなどがビルドできるようにメニューが現れる
+
+☆glibc switch-On でX11、tk
+☆C++ switch-On でlibgtk
+ここまでOK、、なんとlibgtk+のコンパイルが完了
+
+☆ffmpeg switch-On
+ここまでOK、、なんとffmpeg系のlibavcodecなどのビルドが完了
+
+☆opencv switch-On  with ffmpeg, gtk, jpeg, tiff, pngなども選択できる
+ここまでOK、、なぜかOpenCVのビルドの後に、libgtk+のビルドが走ってるが、これで正常にOpenCVがビルド出来ているのか？
+
+sdl2, x264, libv4l2 swith-On
+
+■ビルドしたbusyboxをLinux-Consoleで起動しているDE10Nanoへ転送して実行する
+
+$ scp ogura@192.168.1.20:/home/ogura/DE10Nano/buildroot/output/build/busybox-1.28.4/busybox .
+$ ./busybox --help
+BusyBox v1.28.4 (2018-08-16 19:38:38 JST) multi-call binary.
+...
+Currently defined functions:
+        [, [[, addgroup, adduser, ar, arch, arp, arping, ash, awk, basename, blkid, bunzip2, bzcat, cat, chattr, chgrp,
+        chmod, chown, chroot, chrt, chvt, cksum, clear, cmp, cp, cpio, crond, crontab, cut, date, dc, dd, deallocvt,
+        delgroup, deluser, devmem, df, diff, dirname, dmesg, dnsd, dnsdomainname, dos2unix, du, dumpkmap, echo, egrep, eject,
+        env, ether-wake, expr, factor, fallocate, false, fbset, fdflush, fdformat, fdisk, fgrep, find, flock, fold, free,
+        freeramdisk, fsck, fsfreeze, fstrim, fuser, getopt, getty, grep, gunzip, gzip, halt, hdparm, head, hexdump, hexedit,
+        hostid, hostname, hwclock, i2cdetect, i2cdump, i2cget, i2cset, id, ifconfig, ifdown, ifup, inetd, init, insmod,
+        install, ip, ipaddr, ipcrm, ipcs, iplink, ipneigh, iproute, iprule, iptunnel, kill, killall, killall5, klogd, last,
+        less, link, linux32, linux64, linuxrc, ln, loadfont, loadkmap, logger, login, logname, losetup, ls, lsattr, lsmod,
+        lsof, lspci, lsscsi, lsusb, lzcat, lzma, lzopcat, makedevs, md5sum, mdev, mesg, microcom, mkdir, mkdosfs, mke2fs,
+        mkfifo, mknod, mkpasswd, mkswap, mktemp, modprobe, more, mount, mountpoint, mt, mv, nameif, netstat, nice, nl, nohup,
+        nproc, nslookup, nuke, od, openvt, partprobe, passwd, paste, patch, pidof, ping, pipe_progress, pivot_root, poweroff,
+        printenv, printf, ps, pwd, rdate, readlink, readprofile, realpath, reboot, renice, reset, resize, resume, rm, rmdir,
+        rmmod, route, run-init, run-parts, runlevel, sed, seq, setarch, setconsole, setfattr, setkeycodes, setlogcons,
+        setpriv, setserial, setsid, sh, sha1sum, sha256sum, sha3sum, sha512sum, shred, sleep, sort, start-stop-daemon,
+        strings, stty, su, sulogin, svc, swapoff, swapon, switch_root, sync, sysctl, syslogd, tail, tar, tee, telnet, test,
+        tftp, time, top, touch, tr, traceroute, true, truncate, tty, ubirename, udhcpc, uevent, umount, uname, uniq,
+        unix2dos, unlink, unlzma, unlzop, unxz, unzip, uptime, usleep, uudecode, uuencode, vconfig, vi, vlock, w, watch,
+        watchdog, wc, wget, which, who, whoami, xargs, xxd, xz, xzcat, yes, zcat
+OKみたい!
+
+■zImageとrootfs.tarをsd-cardに展開
+■sd-cardでDE10Nanoをboot
+

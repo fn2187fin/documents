@@ -1,0 +1,85 @@
+Imagenetをurlから再現する
+  link切れなど多数ある
+
+■urlをダウンロード
+$ mkdir imagenet; cd imagenet/
+$ wget http://image-net.org/imagenet_data/urls/imagenet_fall11_urls.tgz
+$ tar xzf imagenet_fall11_urls.tgz
+$ wc fall11_urls.txt 
+  14197122   28396182 1134662781 fall11_urls.txt
+ドデかい
+
+■ついでにidに対応する説明文もダウンロード
+$ wget http://image-net.org/archive/words.txt
+
+■darknet_sdlのclassifierでdarknet classifier modelを試す
+
+$ cd darknet_sdl/
+$ wc data/imagenet.labels.list 
+ 21842  21842 218420 data/imagenet.labels.list
+
+$ head -1000 data/imagenet.labels.list > darknet.labels.txt
+この1000分類で学習しているらしい
+※このファイル内のid順序は大切で、順序を変えると分類処理はできなくなる
+
+■画像ダウンロード
+$ mkdir lists darknet.lists
+$ scripts/split_imagenet.py fall11_urls.txt
+$ for i in `cat darknet.labels.txt`;do ln lists/$i.txt darknet.lists;done
+$ scripts/get_imagenet.sh darknet.lists
+これでimages/以下にdarknet 1000分類用のjpgがダウンロードできる
+
+※10時間で、1000カテゴリがダウンロード出来た
+※リンク切れなど除いて、全部でjpgが550,000枚、67GBの量
+
+ダウンロードしたjpgをtrainとvalに分る
+
+#!/bin/bash
+find `pwd`/images -name \*.jpg | sort -R > trainval_1000c.txt
+export nlines=`wc -l trainval_1000c.txt | awk '{print $1;}'`
+export nval=1000
+export ntrain=`expr $nlines - $nval`
+echo valid images = $nval train images = $ntrain
+head -${ntrain} trainval_1000c.txt > train_1000c.txt
+tail  -${nval}   trainval_1000c.txt > val_1000c.txt
+wc train_1000c.txt val_1000c.txt
+
+確認
+$ head train_1000c.txt 
+...
+/home/ogura/20076433/imagenet/images/n02951358/47218943_30278b0aff.jpg
+/home/ogura/20076433/imagenet/images/n02951358/4128435_dd05c9357a.jpg
+/home/ogura/20076433/imagenet/images/n02951358/486649148_1b1e742d0a.jpg
+/home/ogura/20076433/imagenet/images/n02951358/13372387_77e6bc2ffb.jpg
+/home/ogura/20076433/imagenet/images/n02951358/424211878_73a7313ae8.jpg
+
+darknet classifierは、ファイルのパス名とdarknet.labels.txt内のキーワードを照らし合わせて正解を見分ける
+$ head darknet.labels.txt
+...
+n02119789
+n02100735
+n02110185
+n02096294
+n02102040
+
+dataファイルを作る
+$ cat classifier.data 
+classes=1000
+train  = /home/ogura/20076433/imagenet/train_1000c.txt
+valid  = /home/ogura/20076433/imagenet/val_1000c.txt
+labels = /home/ogura/Darknet/darknet_sdl/darknet.labels.txt
+backup = TTT3_PRE
+top = 5
+
+GTX1050 CUDAがメモリ不足で落ちるので、cfg/extraction.cfgのbatchサイズを少なめな64に設定
+darknet classifier valid classifier.data extraction.cfg extraction.weights
+...
+993: top 1: 0.839034, top 5: 0.960765
+994: top 1: 0.838191, top 5: 0.960804
+995: top 1: 0.838353, top 5: 0.960843
+996: top 1: 0.838516, top 5: 0.960883
+997: top 1: 0.837675, top 5: 0.960922
+998: top 1: 0.837838, top 5: 0.960961
+
+HPでの公表値より高い値が表示された
+

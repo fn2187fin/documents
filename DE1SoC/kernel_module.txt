@@ -1,0 +1,50 @@
+kernel-4.2.0-35-genericでのドライバサンプル
+
+・kernelモジュールのテストソースを作成
+~ogura/Linux-Driver/hello_world/以下にhello.cを作成　※ディレクトリがシンボリックリンクなどではNG
+/*
+ *	hello.c 
+ */
+#include <linux/module.h>
+#include <linux/kernel.h> 
+#define	HELLO_HEADER(kern, func)	kern"hello::"#func" : "
+#define	HELLO_ALERT(func)		HELLO_HEADER(KERN_ALERT, func)
+
+/* ------------------------------
+ *		init
+ * ------------------------------ */
+int init_module( void ) 
+{
+	printk( HELLO_ALERT(init_module) "succeeded\n" );
+	return 0;
+}
+
+/* ------------------------------
+ *		cleanup
+ * ------------------------------ */
+void cleanup_module( void ) 
+{
+	printk( HELLO_ALERT(cleanup_module) "succeeded\n" );
+}
+
+・Makefileを作成　kernel 4.xでのMakefileは1行
+obj-m := hello.o
+
+コンパイルコマンドは、
+make -C /usr/modules/$(uname -r)/build M=$PWD modules
+
+クリーンコマンドは、
+make -C /usr/modules/$(uname -r)/build M=$PWD clean
+
+※kernel 2.xとはmake環境が大きく違うのかもしれない
+
+※以下組込みはrootで作業
+
+・ドライバー組込み起動は、
+# insmod hello.ko
+# rmmod hello.ko
+
+※以下確認はユーザーでOK
+確認コマンドは、
+# tail /var/log/syslog
+

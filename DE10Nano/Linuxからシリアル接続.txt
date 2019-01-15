@@ -1,0 +1,16 @@
+LinuxからDE10-Nanoへシリアル接続する
+
+
+DE10-NanoのUSBポートをLinuxPCのUSBへ接続すると
+・/dev/ttyUSB0が現れる
+
+screenコマンドを使う
+・sudo chmod 777 /dev/ttyUSB0
+・screen /dev/ttyUSB0 115200
+
+これだけ:-)
+
+cuはCentOSでyumできない
+minicomは複雑だし画面が乱れる、入力できない
+screenが超簡単！
+

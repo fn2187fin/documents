@@ -1,0 +1,197 @@
+SoC EDS linux版ダウンロードとインストールについて
+
+[■VirtualBox上のUbuntuで、SoCFPGAのARM上のlinuxをコンパイルできるように環境構築]
+Ubuntuをインストールしただけではarm-linux-gnueabihf-などは入らないし
+SoC EDS+DS-5でlinux上にクロスコンパイル環境を構築してみる
+
+[■SoC EDSとDS-5のインストール]
+SoC EDSにはStandardとProがありそれぞれ無償版と有償版がある
+SoC EDS Proの無償版は、CycloneVなどはサポートせず、Stratix10などが対象
+
+ARM用のコンパイラツールは、SoC EDSではなく、DS5(ARM Development Suite5 for intel SoC FPGA)に含まれるらしく非常にややこしい
+しかしSoC EDSはDS5を含んでいるから、SoC EDSをインストールすればDS5も入るらしい
+DS5はフリーライセンスがあるが、これはこれでアクティベーションコードを入れる必要がある
+
+MyAlteraアカウントが必要なので作成
+k5i.ogura.v40/volvoV40
+
+ダイレクトダウンロードができないので、Akamaiとかいうダウンロード専用ツールをインストールする
+SoC EDS Standard 15.1.1のダウンロード
+Akamaiが起動してダウンロードが始まるが、ここで初めて"ダイレクト・リンク
+を表示"とか出てくる:-)
+なんじゃそりゃぁ～
+
+でダウンロード2.3GB完了し、rootでインストーラを起動
+# SoCEDSSetyo-15.1.1.60-linux.run
+3GB必要らしいが、、、Quartusはインストールから外し、SoC EDSのみインス
+トールするとあっという間にインストール終了しSoC EDSを起動する
+
+xtermが開き、
+agreementが表示される　yes
+installer check? yes
+create ds-5 directory? yes Installing to
+/home/kenji/altera/15.1/embedded/ds-5 ...take a while...
+Install desktop Menu item aditions? yes
+Run post install scripts? yes
+で、インストール完了
+
+df -hで見るとインストーラとSoC EDS全体で6GB使った
+
+で、どうするか？
+https://www.altera.co.jp/content/dam/altera-www/global/en_US/pdfs/literature/ug/ug_soc_eds.pdf
+ユーザガイドを見ると、
+/home/kenji/altera/15.1/embedded/embedded_command_shell.shを起動するとのこと
+起動するとコマンドパスなどがSoC　EDSの環境になり、ちなみに、
+# which arm-linux-gnueabihf-gcc
+/home/kenji/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux- gnueabihf-gcc(4.8.3のリンク)
+と出た:-)　　が、、、
+このgccはshared-libraryを設定しないと実行できないらしい、例の意味不明なcommand not found!
+
+とりあえず、https://github.com/altcrauer/linux/tree/cdpga-3.10-
+ltsi_de0_nano_with_tft
+をダウンロードしてunzip :-p) 途中net関連で上書きしますぅ？yes, yes,...
+ファイル名がながいだの、Read-Only file sytemだの。、、エラー;^<
+Windowsの解凍ツールで再チャレンジ...上書きしますぅ？すべてはい！:-)
+
+arm-linux-gnueabihf-gcc　: command not found
+相変わらず;-0
+
+ARM Developper (Silver) Accountを作り、eclipseのアクティベーションをしてみる
+k5i.ogura.v40@gmail.com / volvoV40
+アクティベーションコードは
+https://developer.arm.com/products/software-development-tools/ds-5-development-studio/editions/customized-editions/intel-soc-fpga/community-edition
+ここに
+AC+706164213434343439
+と書かれているものを使うらしい
+しかしアクティベーションしてもcommand not foundはかわらず;-<
+
+結局、
+ARCH=arm
+CROSS_COMPILE=arm-linux-gnueabi-
+でコンパイルが始まった:-P) 　DS-5はつかっていないじゃん
+Ubuntuのリポジトリからapt-getしたものしか動かない;-<　なんだそれぇ
+(gcc-4.7.3 "arm-linux-gnueabi-gcc --version"がインストールしてあった)
+どうなることやら^^;)
+Could not mmap file: vmlinux
+エラー発生、ググると、VirtualBoxのshared fileで起きるらしい???
+shared以外の場所へコピーすると問題なくなったとか:-<　わけわからんが、、、
+
+/home/kenjiへmvしてmake menuconfigで、
+V4L2関連をOn　CameraとTVをOnするとV4L2がOnになる?らしい
+UVCやUSB等Multimedia Supportをば、、、
+
+.configを確認して再コンパイル、、、成功:-) Good!
+./arch/arm/boot/zImageができたみたい
+
+注意
+bashの$pathで見えるarm-linux-gnueabihf-gccはpetalinuxのモノで5.2
+これが原因でkernelのコンパイルエラーが出る(kernelソースはgcc4.*ベースだからね:-)
+embedded_command_shell.shの$pathで見えるarm-linux-gnueabihf-gccはAlteraのモノで4.8.3
+
+[■CROSS_COMPILE=arm-linux-gnueabihf-]
+arm-linux-gnueabi-はOKだが、gnueabihf-でのNG
+こっちはどうしようか？
+
+Webをググっていると仮想環境での不具合事象がたくさんあることに気付いたぁ;-<
+kernelの再構築などで仮想環境を使うのはあまりよろしくないらしい
+
+embedded_command_shell.shからのコンパイルで
+arm-linux-gnuebihf-gcc : Command not foud
+の件、Ubuntuのarm-linux-gnueabi-gccを使うことで回避したが、ググり続けると、
+http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.faqs/ka14522.html
+ここに回避策がある、、つーっか、DS-5のインストール操作に不足している手順がありそう
+
+ds-deps-ubuntu_64.sh
+
+で不足しているライブラリをインストールするらしい(どこへ？)
+スクリプト内を見ると--no-installオプションでライブラリのチェックができるので
+ds-deps-ubuntu_64.sh --no-install
+未インストールなライブラリがいっぱい表示されるが、このスクリプトでは、
+未インストールなライブラリをapt-get -qq -y install $1 > /dev/null
+するだけ:-)
+DS-5のarm-linux-gnueabihf-gcc*などが動くために必要なライブラリをUbuntu上にインストールする
+arm-linux-gnueabi-gccを使えば良く、arm-linux-gnueabihf-gccを使いたくもない
+この操作は不要な気がしてきたが、Linux
+HostでDS-5を使いkernel再構築をする試行なのでやってみる
+
+まずは、embedded_command_shell.shから、arm-linux-gnueabi-gccを使うおさらい
+# altera/15.1/embedded/embedded_command_shell.sh
+# cd linux-socfpga-3.10-ltsi_de0_nano_with_tft
+# export ARCH=arm
+# export CROSS_COMPILE=arm-linux-gnueabi- # make socfpga_defconfig # make menuconfig
+   V4L2関連とUVC関連を組込でOn
+# make zImage
+Kernel: arch/arm/boot/zImage is ready
+うまく生成された
+
+次にarm-linux-gnueabihf-gccを使うケース
+まず不足しているライブラリを足す
+# cd ~
+# ds-deps-ubuntu_64.sh
+Checking libwebkitgtk-1.0-0... not installed Installing libwebkitgtk-1.0-0...done ...
+libGLso.1 ... not found
+   エラーが出たが、
+
+# arm-linux-gnueabihf-gcc --version
+linaro GCC 4.8.3 20140401
+command not foundは解消したみたい;-o
+
+arm-linux-gnueabihf-gccでkernel再構築をしてみる
+# cd linux-socfpga-3.10-ltsi_de0_nano_with_tft
+# export ARCH=arm
+# export CROSS_COMPILE=arm-linux-gnueabihf-
+# make socfpga_defconfig
+# make menuconfig
+   V4L2関連とUVC関連を組込でOn
+# make zImage
+Kernel: arch/arm/boot/zImage is ready
+生成完了した
+
+※PATHにarm-linux-gnueabihf-gccなどが入っていれば、
+embedded_command_shell.shに入らなくても実害は無くコンパイルできます
+
+以上でUbuntuをHostにしたkernel再構築はOK :=)
+
+[■生成したzImageでDE0ブート arm-linux-gnueabihf-版zImage]
+zImageをmicroSDにコピーしてっと、パワーオン！
+奇跡のブートを見せてくれぇ～おぉブートした
+
+USBカメラを接続してみる
+# dmesg|tail
+なななんと、UVCとしてカメラを認識してるぅ
+
+# /dev/video*
+/dev/video0
+デバイスファイルもできてるし、、、一発で動くことってあるんねぇ～:-)
+
+[■zImageとaclsoc_drv.ko入替えてマンデルブロー]
+zImageを新しくしたのでカーネルモジュールがロードできなくなる
+んで、カーネルモジュールの再コンパイルも必要ね
+
+opencl_soc_bsp.gitからde0_nano_with_displayを取ってきて
+# unzip opencl_soc_bsp-de0_nano_with_display.zip
+# cd opencl_soc_bsp-de0_nano_with_display/c5soc/driver
+# export ARCH=arm
+# exort CROSS_COMPILE=arm-linux-gnueabihf-
+# make KDIR=カーネルソースのパス
+完成
+
+# cd ..
+# tar cvf driver.tar driver/
+このdriver.tarをDE0へコピーして、DE0上で展開
+
+# cd /de0_ocl_150_tft/opencl_arm32_rte/board/c5soc/
+# mv driver/ driver_org #Backup
+# tar xvf driver.tar
+
+さてopencl関係のカーネルモジュールを入替えたんでマンデルブロー動かすと
+# S50_start_mandelbrot_demo.sh
+わおぉ～、動きました:-)
+
+カーネルモジュールはっと、
+# lsmod
+Module		Size	Used by
+aclsoc_drv	8743	2
+なぜかUsed by 2となってますが;->
+
+zImageとカーネルモジュールのカスタム完成:-)

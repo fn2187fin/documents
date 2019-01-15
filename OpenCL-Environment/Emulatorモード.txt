@@ -1,0 +1,162 @@
+Emulatorモードを試す
+
+※まず、"intel FPGA関連環境立ち上げ+CentOS.txt"に従いLinux環境でOpenCL開発環境を立ち上げること
+※以下すべてLinux+CentOSな内容
+
+■Emulatorモードで動作確認するために、ホストとデバイスをコンパイルする時困ったが解決した経緯
+
+SoC-FPGAの場合は、
+ホスト  ： ARM＋Linux
+デバイス： FPGA
+
+PCIなフツーのFPGAの場合は、
+ホスト  ： IntelCPU＋Linux/Windows
+デバイス： FPGA
+
+SoC-FPGAの場合、
+ホストプログラムがクロスコンパイルになるので、出来上がるホストコードはARMで動くものになる
+デバイスは、BSPを使ってコンパイルされるので、使ったBSPが対象にしているFPGA上で動くものになる
+なので、コンパイル済みのホストコードとデバイスコードをARMへ転送してEmulation動作確認することになる
+
+※もちろんSoC-FPGAのCPUがARMだからであって、将来SoC-FPGAがIntelCPU搭載となれば、クロスコンパイルも不要になるかも
+
+PCIなFPGAの場合、
+ホストプログラムがセルフコンパイルになるので、出来上がるホストコードはコンパイルしたCPUで動くものになる
+デバイスコードは、SoC-FPGAだろうがPCIなFPGAだろうが同じBSPを使う限り同じものになる
+なので、コンパイルしたCPUでEmulation動作確認できる
+
+■Emulatorモード on SoC-FPGA
+デバイスの機能設計時には、時間の掛かるデバイスコンパイルを避けたい
+そのためにEmulatorモードがある
+
+IntelFPGAな環境変数設定ファイル(末尾に例あり)を
+$ source src.opencl
+
+BSPをSoC-FPGAに向けて、
+$ export AOCL_BOARD_PACKAGE_ROOT=/opt/intelFPGA/18.0/hld/board/terasic/de10_nano
+
+サンプルをダウンロードし、
+wget https://www.altera.co.jp/content/dam/altera-www/global/en_US/others/support/examples/download/exm_opencl_hello_world_arm32_linux.tgz
+
+※公開されているLinux版、Windows版、arm32版のうち、Linux版を使う
+※わかりにくいが、ホストがどこで動くのか？で分けているらしい
+
+展開後、デバイスのコンパイル
+$ aoc -g -v -report -board=de10_nano_sharedonly hello_world.cl -march=emulator
+
+つづけてホストのコンパイル
+※Makefileに、acl_emulator_kernel_rt、の記述が抜けているので警告が出る;-<
+$ make
+$ file bin/host 
+bin/host: ELF 32-bit LSB executable, ARM, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 3.1.1, BuildID[sha1]=ec6b7d55856a0528dc7f8fc7053288e1841b368e, not stripped
+
+Emulator実行
+ホストコンパイルはクロスコンパイルなので、ホストとデバイスのコンパイルコードをSoC-FPGAへ転送して実行
+
+■Emulatorモード on PCI-FPGA
+FPGA装置なしで、Emulatorを使ってOpenCLカーネル開発したい、、、
+PCIｰFPGAなFPGA環境でEmulatorモードを使おう、ということ
+
+BSPの準備
+http://www.alterawiki.comで公開されているPCI-FPGAなCycloneV-GTのBSPを使う
+wget http://www.alterawiki.com/uploads/b/b4/C5gt_bsp_linux_beta_wo_cvp_v17.0.tar.gz
+↑展開して↓に置く
+/opt/intelFPGA/18.0/hld/board/c5gt
+
+※CycloneV-GTはPCIe経由で、コンフィグ／実行するFPGAであって OpenCL-BSPが有志で開発されたみたいだ
+※なぜこんな重要なBSPが正式に開発されていないのか不思議
+
+■hello_worldでEmulatorモードを試す
+
+IntelFPGAな環境変数設定ファイル(末尾に例あり)を
+$ source src.opencl
+
+BSPをPCIeなFPGAに向けて、
+$ export AOCL_BOARD_PACKAGE_ROOT=/opt/intelFPGA/18.0/hld/board/c5gt
+
+サンプルをダウンロードし、
+wget https://www.altera.co.jp/content/dam/altera-www/global/en_US/others/support/examples/download/exm_opencl_hello_world_x64_linux.tgz
+
+※公開されているLinux版、Windows版、arm32版のうち、Linux版を使う
+※わかりにくいが、ホストがどこで動くのか？で分けているらしい
+
+展開後、デバイスのコンパイル
+$ aoc -g -v -report -board=c5gt hello_world.cl -march=emulator
+
+ホストのコンパイル
+$ make
+$ file bin/host 
+bin/host: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.32, BuildID[sha1]=4dde214fc05b1201450a2c5e48cf16f1eda12a91, not stripped
+
+Emulator実行
+$ cd bin;cp ../device/hello_world.aocx .
+$ export CL_CONTEXT_EMULATOR_DEVICE_INTELFPGA=1
+$ ./host
+Querying platform for info:
+==========================
+CL_PLATFORM_NAME                         = Intel(R) FPGA SDK for OpenCL(TM)
+CL_PLATFORM_VENDOR                       = Intel(R) Corporation
+CL_PLATFORM_VERSION                      = OpenCL 1.0 Intel(R) FPGA SDK for OpenCL(TM), Version 18.0
+
+Querying device for info:
+========================
+CL_DEVICE_NAME                           = EmulatorDevice : Emulated Device
+CL_DEVICE_VENDOR                         = Intel(R) Corporation
+CL_DEVICE_VENDOR_ID                      = 4466
+CL_DEVICE_VERSION                        = OpenCL 1.0 Intel(R) FPGA SDK for OpenCL(TM), Version 18.0
+CL_DRIVER_VERSION                        = 18.0
+CL_DEVICE_ADDRESS_BITS                   = 64
+CL_DEVICE_AVAILABLE                      = true
+CL_DEVICE_ENDIAN_LITTLE                  = true
+CL_DEVICE_GLOBAL_MEM_CACHE_SIZE          = 32768
+CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE      = 0
+CL_DEVICE_GLOBAL_MEM_SIZE                = 8092549120
+CL_DEVICE_IMAGE_SUPPORT                  = true
+CL_DEVICE_LOCAL_MEM_SIZE                 = 16384
+CL_DEVICE_MAX_CLOCK_FREQUENCY            = 1000
+CL_DEVICE_MAX_COMPUTE_UNITS              = 1
+CL_DEVICE_MAX_CONSTANT_ARGS              = 8
+CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE       = 2023137280
+CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS       = 3
+CL_DEVICE_MEM_BASE_ADDR_ALIGN            = 8192
+CL_DEVICE_MIN_DATA_TYPE_ALIGN_SIZE       = 1024
+CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR    = 4
+CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT   = 2
+CL_DEVICE_PREFERRED_VECTOR_WIDTH_INT     = 1
+CL_DEVICE_PREFERRED_VECTOR_WIDTH_LONG    = 1
+CL_DEVICE_PREFERRED_VECTOR_WIDTH_FLOAT   = 1
+CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE  = 0
+Command queue out of order?              = false
+Command queue profiling enabled?         = true
+Using AOCX: hello_world.aocx
+
+Kernel initialization is complete.
+Launching the kernel...
+
+Thread #2: Hello from Altera's OpenCL Compiler! <= ここがカーネル動作
+
+Kernel execution is complete.
+
+動いたみたいね :~)
+
+■src.openclの例
+
+export QUARTUS_ROOTDIR=/opt/intelFPGA/18.0/quartus
+export ALTERAOCLSDKROOT=/opt/intelFPGA/18.0/hld
+export PATH=$PATH:$QUARTUS_ROOTDIR/bin:/opt/intelFPGA/18.0/embedded/ds-5/bin:/opt/intelFPGA/18.0/embedded/ds-5/sw/gcc/bin:$ALTERAOCLSDKROOT/bin:$ALTERAOCLSDKROOT/linux64/bin:
+export LD_LIBRARY_PATH=$ALTERAOCLSDKROOT/linux64/lib
+export AOCL_BOARD_PACKAGE_ROOT=$ALTERAOCLSDKROOT/board/terasic/de10_nano
+#export AOCL_BOARD_PACKAGE_ROOT=$ALTERAOCLSDKROOT/board/c5soc
+export QUARTUS_64BIT=1
+export LM_LICENSE_FILE=/home/ogura/Licese.dat
+
+#2017.11.04 Reblanded ALTERAOCLSDKROOT to
+export INTELFPGAOCLSDKROOT=$ALTERAOCLSDKROOT
+export LD_LIBRARY_PATH=$INTELFPGAOCLSDKROOT/host/linux64/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$AOCL_BOARD_PACKAGE_ROOT/linux64/lib:$LD_LIBRARY_PATH
+export QUARTUS_ROOTDIR_OVERRIDE=$QUARTUS_ROOTDIR
+export TMPDIR=/home/ogura/tmpdir
+
+#2017.11.04 Reblanded CL_CONTEXT_EMULATOR_DEVICE_ALTERA to
+#export CL_CONTEXT_EMULATOR_DEVICE_INTELFPGA=0
+

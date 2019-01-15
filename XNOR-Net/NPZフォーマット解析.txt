@@ -1,0 +1,26 @@
+http://qiita.com/kaityo256/items/f1e2c8e38cbf8ffd8c09
+「Chainerのモデルを保存する時は|chainer.serializers.save_npz|を使うと思う。これはnumpyのnpz形式で、実体はZipアーカイブ」
+らしいので拡張子を加えてunzipすると
+
+# cp and.npz and.npz.zip
+# unzip and.npz.zip
+predictor - l1
+              - l2 - W.npy, b.npy
+なんか展開された:-o
+
+.npyはnumpyのセーブフォーマットらしいので、numpyで読み込んでみる
+
+# python
+# import numpy
+# W1=numpy.load('predictor/l1/W.npy')
+# W1.shape
+   (3,2)
+# W1
+array([[-1.67 , 0.98],
+          [-0.96 , 0.22],
+          [  0.51 , 1.48]], dtype=float32)
+なるほど、3行2列の行列が読み取れた:-)
+同様に見てみるとb.npyは3要素の配列になっていた
+W.npyは重み、b.npyがバイアスであろう
+
+shellでunzipしてpythonでnpyを読み込めば、内容が分かるワケだ

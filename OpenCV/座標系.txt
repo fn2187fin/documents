@@ -1,0 +1,42 @@
+﻿numpyでアクセスする時は、
+
+Y,X,Channel
+
+の座標系
+
+cv2.circleなどのアクセス関数では、
+
+X,Y
+の座標系
+
+当たり前ではあるが混乱する
+
+例
+
+img = xp.zeros((64,64,3),dtype=xp.float32)
+
+cv2.circle(img, 中心, 半径, -1)
+中心：(X, Y)
+で円を書く
+
+このときnumpyで円の中心に色を着けるには
+
+img[Y][X] = 値
+となる
+
+Y,Xが逆になるから混乱するので注意
+
+左上：cv2.circle(img,(0,0),..)    numpy.ndarray[0][0]
+右上：cv2.circle(img,(W,0),..)    numpy.ndarray[0][W]
+(0,0)       (W,0)
++-------------+
++
++
++
++-------------+
+(0,H)       (W,H)
+左下：cv2.circle(img,(0,H),..)    numpy.ndarray[H][0]
+右下：cv2.circle(img,(W,H),..)    numpy.ndarray[H][W]
+
+XYの関係がnumpyとcvで逆になる
+

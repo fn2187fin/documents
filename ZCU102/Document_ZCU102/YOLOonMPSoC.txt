@@ -1,0 +1,110 @@
+【Darknetを入手】
+https://pjreddie.com/darknet/
+
+【Linux on VirtualBoxで立上げ】
+git clone https://github.com/pjreddie/darknet.git
+cd darknet
+make
+./darknet
+ usage:  ./darknet <function>と出きてOK
+
+【初期テスト】
+./darknet imtest data/eagle.jpgでC[1-4].pngが出きてOK
+
+【YOLO初期認識テスト】
+weightを入手
+wget http://prjeddie.com/media/files/yolo.weights
+./darknet detect cfg/yolo.cfg yolo.weights data/dog.jpg
+おなじみの認識結果がpredictions.pngに出来てOK
+
+【ARMへ移植】
+Makefile修正
+
+#コンパイラはsdscc
+CC=sdscc
+
+#staticリンクすること
+LDFLAGS= -lm -pthread -static
+
+#最適化はやっとく
+OPTS=-O3
+
+コンパイル
+make clean
+make
+でsd_cardディレクトリが出来上がるので、SDCardへコピーして
+・ブートしOK
+・./darknet detect cfg/yolo.cfg yolo.weights data/dog.jpg
+38秒で認識完し、おなじみのpredictions.pngが完成しOK
+以上でARM上への移植は済
+
+【PL0へ関数移行】
+Makefile修正
+PLATFORM=zcu102
+SDSFLAGS=-sds-pf $(PLATFORM)
+SDSFLAGS+=\
+	-sds-hw gemm_nn gemm.c -sds-end
+CC=sdscc $(SDSFLAGS)
+
+ランダムアクセスする引数配列には手直しが必要なのでgemm.cを修正
+
+・引数は共有メモリアクセスであることを教えるpragma
+#pragma SDS data zero_copy(A)
+#pragma SDS data zero_copy(B)
+#pragma SDS data zero_copy(C)
+
+・ランダムアクセスする時は配列サイズが固定である必要があるそうなので、
+void gemm_nn(int M, int N, int K, float ALPHA, 
+        float A[33554432], int lda, 
+        float B[33554432], int ldb,
+        float C[33554432], int ldc)
+
+・make
+30分
+sd_cardをコピーしてブートしてdarknetを起動
+
+sh-4.3# ./darknet detect cfg/yolo.cfg  yolo.weights data/dog.jpg
+layer     filters    size              input                output
+    0 conv     32  3 x 3 / 1   416 x 416 x   3   ->   416 x 416 x  32
+    1 max          2 x 2 / 2   416 x 416 x  32   ->   208 x 208 x  32
+    2 conv     64  3 x 3 / 1   208 x 208 x  32   ->   208 x 208 x  64
+    3 max          2 x 2 / 2   208 x 208 x  64   ->   104 x 104 x  64
+    4 conv    128  3 x 3 / 1   104 x 104 x  64   ->   104 x 104 x 128
+    5 conv     64  1 x 1 / 1   104 x 104 x 128   ->   104 x 104 x  64
+    6 conv    128  3 x 3 / 1   104 x 104 x  64   ->   104 x 104 x 128
+    7 max          2 x 2 / 2   104 x 104 x 128   ->    52 x  52 x 128
+    8 conv    256  3 x 3 / 1    52 x  52 x 128   ->    52 x  52 x 256
+    9 conv    128  1 x 1 / 1    52 x  52 x 256   ->    52 x  52 x 128
+   10 conv    256  3 x 3 / 1    52 x  52 x 128   ->    52 x  52 x 256
+   11 max          2 x 2 / 2    52 x  52 x 256   ->    26 x  26 x 256
+   12 conv    512  3 x 3 / 1    26 x  26 x 256   ->    26 x  26 x 512
+   13 conv    256  1 x 1 / 1    26 x  26 x 512   ->    26 x  26 x 256
+   14 conv    512  3 x 3 / 1    26 x  26 x 256   ->    26 x  26 x 512
+   15 conv    256  1 x 1 / 1    26 x  26 x 512   ->    26 x  26 x 256
+   16 conv    512  3 x 3 / 1    26 x  26 x 256   ->    26 x  26 x 512
+   17 max          2 x 2 / 2    26 x  26 x 512   ->    13 x  13 x 512
+   18 conv   1024  3 x 3 / 1    13 x  13 x 512   ->    13 x  13 x1024
+   19 conv    512  1 x 1 / 1    13 x  13 x1024   ->    13 x  13 x 512
+   20 conv   1024  3 x 3 / 1    13 x  13 x 512   ->    13 x  13 x1024
+   21 conv    512  1 x 1 / 1    13 x  13 x1024   ->    13 x  13 x 512
+   22 conv   1024  3 x 3 / 1    13 x  13 x 512   ->    13 x  13 x1024
+   23 conv   1024  3 x 3 / 1    13 x  13 x1024   ->    13 x  13 x1024
+   24 conv   1024  3 x 3 / 1    13 x  13 x1024   ->    13 x  13 x1024
+   25 route  16
+   26 reorg              / 2    26 x  26 x 512   ->    13 x  13 x2048
+   27 route  26 24
+   28 conv   1024  3 x 3 / 1    13 x  13 x3072   ->    13 x  13 x1024
+   29 conv    425  1 x 1 / 1    13 x  13 x1024   ->    13 x  13 x 425
+   30 detection
+Loading weights from yolo.weights...Done!
+ERROR: No virtual to physical mapping found; Make sure all arrays passed to the zero copy datamover are allocated with sds_alloc
+
+・どうやらsds_alloc()で連続領域確保が必要
+(コンパイル時に教えてほしいな)
+　ソース修正　mallocをsds_alloc、freeをsds_freeへ全て変更
+　　　　　　※reallocの仕様部分はsds_allocで代用した
+・Unable determin ...
+Data Moverが決まらない...等のエラーが取れない
+sds_alloc, sds_freeなど導入するがエラー収束せず　NG
+
+移植あきらめ

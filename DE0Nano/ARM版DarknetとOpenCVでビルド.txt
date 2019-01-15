@@ -1,0 +1,130 @@
+[■ARM版Darknet+OpenCV3.2.0でビルド]
+
+PKG_CONFIG_PATH=
+~/libs/opencv-3.2_armhf_NEON_VFPV3_medium+ffmpeg/release/installed/lib/pkgconfig:
+~/libs/ffmpeg_armhf+x264/lib/pkgconfig/
+
+Makefileはオリジナルから修正
+CFLAGS = -DOPENCV -lstdc++
+Darknetは純Cで書いてあるがOpenCV3.xはC++ベースなので、libstdc++が必要になる
+
+これで
+CFLAGS=1 make clean
+CFLAGS=1 make
+
+make成功
+
+readelfでみると、
+
+Dynamic section at offset 0x53018 contains 43 entries:
+  Tag        Type                         Name/Value
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so.6]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so.6]
+ 0x00000001 (NEEDED)                     Shared library: [libopencv_ml.so.3.2]
+ 0x00000001 (NEEDED)                     Shared library: [libopencv_objdetect.so.3.2]
+ 0x00000001 (NEEDED)                     Shared library: [libopencv_shape.so.3.2]
+ 0x00000001 (NEEDED)                     Shared library: [libopencv_stitching.so.3.2]
+ 0x00000001 (NEEDED)                     Shared library: [libopencv_superres.so.3.2]
+ 0x00000001 (NEEDED)                     Shared library: [libopencv_videostab.so.3.2]
+ 0x00000001 (NEEDED)                     Shared library: [libopencv_calib3d.so.3.2]
+ 0x00000001 (NEEDED)                     Shared library: [libopencv_features2d.so.3.2]
+ 0x00000001 (NEEDED)                     Shared library: [libopencv_highgui.so.3.2]
+ 0x00000001 (NEEDED)                     Shared library: [libopencv_videoio.so.3.2]
+ 0x00000001 (NEEDED)                     Shared library: [libopencv_imgcodecs.so.3.2]
+ 0x00000001 (NEEDED)                     Shared library: [libopencv_video.so.3.2]
+ 0x00000001 (NEEDED)                     Shared library: [libopencv_photo.so.3.2]
+ 0x00000001 (NEEDED)                     Shared library: [libopencv_imgproc.so.3.2]
+ 0x00000001 (NEEDED)                     Shared library: [libopencv_flann.so.3.2]
+ 0x00000001 (NEEDED)                     Shared library: [libopencv_core.so.3.2]
+ 0x00000001 (NEEDED)                     Shared library: [libpthread.so.0]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so.6]
+
+こんな感じでOpenCVをダイナミックリンクしている
+
+[■DE0Nanoへ転送して起動]
+./darknet classifier demo data/cifar.data5 cfg/cifar_minin.cfg backup5/cifar_minin.weights -c 0
+...
+
+OpenCVでは扱えないフォーマットをカメラが返すらしく、エラー終了;-<
+
+[■ARM版Darknet+OpenCV2.4.13でビルド]
+python2.7+OpenCV3.0でVideoCaptureが使えない現象があったことを思い出して、
+OpenCV3.xではC言語IFが廃止になった関係からOpenCV-2.xのARM版ビルドを試す;-<
+
+https://gist.github.com/arthurbeggs/06df46af94af7f261513934e56103b30
+↑ここを参照したが、ほとんど参考にはならない;->
+
+# cat cmake_build_armhf_ffmpeg.sh
+
+export PKG_CONFIG_PATH=/home/ogura/libs/ffmpeg_armhf+x264/lib/pkgconfig/
+cmake -G "Unix Makefiles" \
+-DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++ \
+-DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc \
+-DCMAKE_BUILD_TYPE=RELEASE \
+-DCMAKE_INSTALL_PREFIX=/home/ogura/libs2/opencv-2.4.13_armhf_ffmpeg \
+-DBUILD_NEW_PYTHON_SUPPORT=OFF \
+-DWITH_V4L=ON \
+-DINSTALL_C_EXAMPLES=OFF \
+-DBUILD_TESTS=OFF \
+-DBUILD_PERF_TESTS=OFF \
+-DINSTALL_PYTHON_EXAMPLES=OFF \
+-DBUILD_EXAMPLES=OFF \
+-DWITH_QT=OFF \
+-DWITH_OPENGL=OFF \
+-DBUILD_FAT_JAVA_LIB=OFF \
+-DINSTALL_TO_MANGLED_PATHS=OFF \
+-DINSTALL_CREATE_DISTRIB=OFF \
+-DENABLE_FAST_MATH=OFF \
+-DWITH_IMAGEIO=OFF \
+-DWITH_GSTREAMER=OFF \
+-DWITH_GTK=OFF \
+-DWITH_CUDA=OFF\
+-DUSE_OPENCL=OFF \
+-DWITH_1394=OFF \
+-DWITH_FFMPEG=ON \
+..
+
+ただし、opencv_createsamplesなどのアプリのビルドに失敗するので、
+opencv-2.4.13/apps/CMakeLists.txtを修正
+
+link_libraries(${OPENCV_LINKER_LIBS})
+#add_subdirectory(haartraining)
+#add_subdirectory(traincascade)
+#add_subdirectory(annotation)
+#add_subdirectory(visualisation)
+
+これでアプリのビルドはスキップできる
+
+# ./cmake_build_armhf_ffmpeg.sh
+# make
+# make install
+
+[■DE0Nanoへ転送して起動]
+Opencv-2.4.13、ffmpeg、libv4lをDE0へコピー(tarではシンボリックリンクがNGなのでコピーした)
+/area51/lib/opencv2413/以下へ*.soを展開してLD_LIBRARY_PATHを通す
+
+# export LD_LIBRARY_PATH=/lib/opencv2413
+Darknet起動！
+# ./darknet classifier demo data/cifar.data5 cfg/cifar_minin.cfg backup5/cifar_minin.weights -c 0
+...
+
+GTK+が一緒にビルドされていないよぉ～なメッセージが出た
+cvVideoCapture(0)は通過して、cvNamedWindow('Classifier')でウィンドウを張ろうとしてエラー
+まぁ想定内のエラーなんで良い
+
+[■cvNamedWindowなどGTK+をコメントアウトしてビルド]
+example/classifier.cを修正
+# OPENCV=1 make
+
+[■DE0Nanoへdarknetを転送して起動]
+
+Darknet起動！
+# ./darknet classifier demo data/cifar.data5 cfg/cifar_minin.cfg backup5/cifar_minin.weights -c 0
+うっひょーうっひょー、、認識してる:-0)
+
+11FPS
+... % person
+... % background
+
+カメラの違いからかよくわからんがカメラに近づくと認識する
+まぁ正常正常:-)

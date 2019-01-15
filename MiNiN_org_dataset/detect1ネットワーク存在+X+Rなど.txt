@@ -1,0 +1,50 @@
+1の最終段の各ノードで、人物分類を推定させるネットワークを試す
+このとき、最終段の意味を
+0:confidence
+1:x
+2:r
+としてNNに与えた場合、精度がでるものか。
+精度が出れば、xで左右位置、rで標準アンカーから対応する面積のアンカーを選択できるか
+
+[■ネットワーク形態]
+
+ 3x128x128 conv1
+32x128x128 max
+32x 42x 42 actv2
+64x 42x 42 actv3
+64x 42x 42 conv12
+64x 42x 42 max
+64x 14x 14 actv22
+32x 14x 14 actv32
+32x 14x 14 aver
+32x  1x  1 actv4
+↓
+3x1x1(最終段)
+
+[■学習データ]
+https://data.vision.ee.ethz.ch/cvl/rrothe/imdb-wiki/
+http://web.mit.edu/torralba/www/indoor.html
+http://people.csail.mit.edu/torralba/code/spatialenvelope/
+↑から収集したが、縦長画像はムシ
+
+imdb      84,372
+crop_imdb 26,988
+indoor    15,600
+spatial    2,688
+
+↑からファイルリストとアノテーションデータとリストを作成
+$ python mat2txt.py imdb/imdb.mat
+
+[■学習と認識性能]
+①学習
+
+②評価
+$ ./estimate_det.py -m NIN2_128_DET1 -w NIN2_128_DET1_sgd.model -i s300.txt ;./bythreshold.py
+
+③sklearn.metrics.average_precision_scoreを使った結果と自前でT,Yから指標を計算している↑
+s300.txtは、
+https://data.vision.ee.ethz.ch/cvl/rrothe/imdb-wiki/
+↑から収集したwiki画像からランダムに選んだものとindoorやspatialからランダムに選んだもの
+これで評価した
+
+0.xx~0.xx程度のaverage-precision(AP適合率)であり、良好:-)

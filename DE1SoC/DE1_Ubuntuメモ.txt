@@ -1,0 +1,83 @@
+DE1-SOC User Manual.pdfの3.1 Setting of FPGA Configuration Modeの章に従いMSEL[4:0]を設定
+　・MSEL[4:0] = 00000  (U-Boot & double bufferの時)
+　・MSEL[4:0] = 01010  (Linux-Consoleの時)
+　・Ubuntuの.imgをterasicからDL
+　・Win32DiskImagerをWindows7にinstallしmicroSD(32GB)に書き込み
+
+[Figure3-1] DIP Switch setting
+
+MSEL[4:0]=10010 (AS-Mode)
+□V □■ 6   …N/A
+□E □■ 5 4 …1
+□  ■□ 4 3 …0
+□  ■□ 3 2 …0
+□N □■ 2 1 …1
+□O ■□ 1 0 …0
+"0"       "1"
+
+MSEL[4:0]=01010 (FPPx32-Mode FPGA configured from HPS software: Linux)
+□V □■ 6   …N/A
+□E ■□ 5 4 …0
+□  □■ 4 3 …1
+□  ■□ 3 2 …0
+□N □■ 2 1 …1
+□O ■□ 1 0 …0
+"0"       "1"
+
+MSEL[4:0]=00000
+(FPPx16-Mode FPGA configured from HPS software: U-Boot, with image stored
+ on the SD card, like LXDE Desktop or console Linux with frame buffer edition.)
+□V □■ 6   …N/A
+□E ■□ 5 4 …0
+□  ■□ 4 3 …0
+□  ■□ 3 2 …0
+□N ■□ 2 1 …0
+□O ■□ 1 0 …0
+"0"       "1"
+なので、LXDE、Ubuntuは、00000に設定して起動。rootでGUIが開く
+
+Internet接続環境を設定
+　・WindowsPCの外部接続側ネットワークIFを共有設定する
+　・共有されるネットワークアダプタとしてUbuntu側ネットワークIFを指定する
+    (192.168.153.1に自動設定される)
+　・Ubuntu側のネットワーク設定はなし
+　・Ubuntu側からpingして、WindowsPC⇔Ubuntuの接続確認しOK
+    ping 192.168.153.1
+　・Ubuntu側は192.168.153.188に自動設定された(DHCPなのでブートのたびに変更される)
+　・linuxネットワークアドレスを固定
+　　/etc/network/interfacesを編集
+    auto eth0
+    # iface eth0 inet dhcp #コメントアウト
+    iface eth0 inet static
+    address 192.168.137.2
+    network 192.168.137.0
+    netmask 255.255.255.0
+    gateway 192.168.137.1
+    iface eth1 inet dhcp
+
+キーボードレイアウトの設定をsystem settingsのパネルで変更
+　・デフォルトでEnglishキーマップになっているのでJapaneseを追加してEnglishを削除
+　・Caps_LockとCtrlキーのスワップ
+
+aptのproxy設定
+　・/etc/apt/apt.confを作成しproxyアドレスとユーザID/パスを記述
+　Acquire::http::proxy "http://ユーザ名:パスワード@158.213.151.4:8080";
+　Acquire::https::proxy "https://ユーザ名:パスワード@158.213.151.4:8080";
+　・apt-get updateで確認しOK
+
+開発環境
+　・gcc, make, gdbはデフォルトのUbuntuのブートimgにはインストール済
+　・hello worldを書いて確認しコンパイル＆実行はOK
+
+ssh(scp)環境
+　・apt-get -y install ssh
+　・/etc/init.d/ssh restart
+　・ps -edalf | grep sshdで確認しOK
+
+Ubuntu Upgrade
+　・linux ディストリビューションのapt-get upgrade
+　・no left on devideのため実行不可
+
+FPGA環境　Ubuntu.imgでは動作せず
+　・source init_opencl.shでinsmodがFormatエラーとなりaclsoc_div.koがロードできず
+　・追試：linux console版でもDIPスイッチが00000ではFPGA環境は動作せず

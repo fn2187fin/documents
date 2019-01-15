@@ -1,0 +1,75 @@
+[■v4l2-ctlで画像解像度などを設定したいが]
+# apt-rdepends v4l2-ctl
+で確認し、v4l2-ctlに必要なライブラリを集める
+
+それらをDE0へ転送後、ライブラリバージョンなどの不整合を取るために*.debを集める
+結果は下記にまとまった
+ただしダウンロードした後で,libv4l2.pc内のディレクトリ(PREFIX)を修正する必要がある
+
+# cat debV4L2.sh
+
+#! /bin/bash -e
+rm -f *.deb
+rm -fr usr lib
+
+debget()
+{
+for deb in $DEBs
+do
+	echo ${WEB}/$deb
+	wget ${WEB}/$deb
+	echo dpkg --extract $deb .
+	dpkg --extract $deb .
+done
+}
+
+# .so.x.x.x and .so.x
+WEB=http://ftp.jp.debian.org/debian/pool/main/v/v4l-utils/
+DEBs="libv4l-dev_1.12.5-1_armhf.deb "
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/v/v4l-utils/
+DEBs="libv4l-0_1.12.5-1_armhf.deb "
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/v/v4l-utils/
+DEBs="libv4l2rds0_1.12.5-1_armhf.deb "
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/v/v4l-utils/
+DEBs="libv4lconvert0_1.12.5-1_armhf.deb "
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/v/v4l-utils/
+DEBs="v4l-utils_1.12.5-1_armhf.deb"
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/libj/libjpeg8/
+DEBs="libjpeg8_8d-1+deb7u1_armhf.deb"
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/libj/libjpeg8/
+DEBs="libjpeg8-dev_8d-1+deb7u1_armhf.deb"
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/libj/libjpeg6b/
+DEBs="libjpeg62_6b2-2_armhf.deb"
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/libj/libjpeg-turbo/
+DEBs="libjpeg62-turbo_1.5.1-2_armhf.deb"
+debget
+
+WEB=http://ftp.jp.debian.org/debian/pool/main/g/gcc-7/
+DEBs="libstdc++6_7.1.0-9_armhf.deb"
+debget
+
+で、
+# debV4L2.sh
+集まったライブラリとv4l2-ctlをDE0へ転送すると動作した
+
+[■解像度など設定はできなかった;-<]
+# v4l2-ctl -d 0 --set-fmt-video=width=640,height=480 --set-parm=15
+NG
+ガッカリ;-<
+ 

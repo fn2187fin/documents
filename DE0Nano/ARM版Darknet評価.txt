@@ -1,0 +1,72 @@
+﻿ARM版darknetでのcifar_minin.cfgによる認識の評価
+
+[■処理速度@CPU]
+
+darknet classifier demo data/cifar.data5 cfg/cifar_minin.cfg backup5/cifar_minin.weights -c 0
+
+認識あり/なしでdarknetをビルドして描画処理FPS比較(gettimeofday()で計測)
+あり:6FPS
+なし:7FPS
+
+認識処理時間だけを見てみる
+
+☆ARM単独で
+20msec/Frame≒50FPS
+
+☆では、GEMMをOpenCL(FPGA)で処理させると、
+50msec ≒ 20FPS  ;-<
+
+残念！ARM単独よりFPGAでGEMMやった方が遅い
+ひぃぇ～ん
+
+[■CV->predict->SDLによる画像表示性能]
+
+cap = cvCaptureFromCam(0)
+sdlNamedWindow()
+while(1)
+  cvQF_src = cvQueryFrame(cap)
+  network_predict()
+  sdlShowImage(cvQF_src)
+のフローで6FPS(166msec/Frame)
+
+[■CV->SDLによる画像表示性能]
+認識処理(network_predict)を外してビデオカメラとしての処理性能を試すと
+
+cap = cvCaptureFromCam(0)
+sdlNamedWindow()
+while(1)
+  cvQF_src = cvQueryFrame(cap)
+  sdlShowImage(cvQF_src)
+のフローで7FPS(140msec/Frame)
+遅い;-<
+
+[■CV->SDLでSDLのレンダリングをマルチスレッド化]
+SDL2はレンダリングは単一スレッドで処理する必要があるらしい
+「SDL2ではSDL_RendererのAPIは同一のスレッドで扱う必要があり、
+必然的にレンダリングスレッドにおいて、SDL_Rendererの初期化処理、
+描画処理、終了処理を実行する必要があります。」とさ:-)
+
+マルチスレッドでのレンダリングに対応させました
+描画速度は2~30FPSに上がりました、約2倍の描画速度
+ 
+[■電力]
+ACアダプタ　中＋プラグ
+2A/5V
+
+安定化電源を繋いで測定してみる
+[ARM+FPGA版]
+□ DE0-NANO+LCD+UVC
+1.24A/5V = 6.2W
+
+□ DE0-NANO+LCD
+0.78A/5V = 3.9W
+
+□ DE0-NANO+UVC
+1.12A/5V = 5.6W
+
+□ DE0-NANO
+0.68A/5V = 3.4W
+
+[ARMのみ版]
+□ DE0-NANO+LCD+UVC
+1.40A/5V = 7.0W

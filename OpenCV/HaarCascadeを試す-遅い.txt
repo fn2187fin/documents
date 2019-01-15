@@ -1,0 +1,16 @@
+HaarCascadeはどんな感じか？試す
+
+OpenCV-2.4.10+Python+Windows7
+もちろんGPUは無し
+
+[■サンプルソース]
+顔認識のサンプルがころがってたので修正して使用
+https://github.com/k5iogura/MixDetector
+
+[■カメラ起動]
+イメージファイルから認識…まぁまぁ
+カメラ入力…遅い！
+で、ググると、、、遅いらしい
+
+5FPS程度な感覚
+

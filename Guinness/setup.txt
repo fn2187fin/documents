@@ -1,0 +1,31 @@
+Guinness setup
+
+anaconda3-4.1.0を入れるとPyQt4がインストールされる
+PyQt4をインストールするのは大変難しい
+だからanacondaを利用したが、、、、Python3.5.1が入り、使えない場合もおおい
+
+1. By guinness tutorial
+$ pyenv install anaconda3-4.1.0
+$ pyenv shell anaconda3-4.1.0
+$ python -c "import PyQt4"
+$ pip install chainer==1.24.0
+$ conda -y -c menpo opencv3
+$ sudo yum install libpng12
+$ conda install -c asmeurer pango
+$ export LD_LIBRARY_PATH=/usr/lib64:$LD_LIBRARY_PATH
+$ python -c "import cv2"
+$ python
+  import cv2
+  import PyQt4
+  import chainer
+
+  cv2.__version__
+  3.2.0
+
+  chainer.__version__
+  1.24.0
+
+repare training and valid data
+
+$ wget https://www.dropbox.com/s/59fx0r5fuqmuo3j/class3_image.zip
+

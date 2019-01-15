@@ -1,0 +1,147 @@
+﻿[■OpenCVの動画再生にはFFMPEGが必須]
+FFMPEGのARMクロスコンパイルを試す↓
+https://trac.ffmpeg.org/wiki/CompilationGuide/RaspberryPi
+ラズパイへの記事だけど、参考にしながら試す
+
+[■CompilationGuide/RaspberryPi ? FFmpeg]
+・Preparing the environment
+クロスコンパイラの立ち上げは済んでいるのでskip
+
+・Compiling additional libraries needed for FFmpeg
+
+・Compiling FFmpeg
+外部ライブラリ(acc,x264,lame)を使うケースとBasicなケース、2種類書かれている
+
+・Basic FFmpeg, without additional libraries
+ここでさらにstaticリンクのケースとダイナミックリンクのケースがありそうだから、2つを試す
+
+[■StaticとShared両方なケースを試す　--enable-shared付きでconfigure]
+# cat conf.sh
+
+CCPREFIX=/home/kenji/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-
+./configure \
+ --enable-cross-compile \
+ --cross-prefix=${CCPREFIX} \
+ --arch=armel \
+ --target-os=linux \
+ --enable-shared \
+ --prefix=/home/kenji/libs/ffmpeg_armhf | tee log
+
+# conf.sh
+ffplayが作られないよってlogに出ているが、gtkの関係かも
+logを見ると、shared yes、static yes　になってる
+
+# make
+# find . -name \*.so
+./libavdevice/libavdevice.so
+./libavfilter/libavfilter.so
+./libswscale/libswscale.so
+./libavutil/libavutil.so
+./libavformat/libavformat.so
+./libswresample/libswresample.so
+./libavcodec/libavcodec.so
+# find . -name \*.a
+./libavdevice/libavdevice.a
+./libavfilter/libavfilter.a
+./libswscale/libswscale.a
+./libavutil/libavutil.a
+./libavformat/libavformat.a
+./libswresample/libswresample.a
+./libavcodec/libavcodec.a
+
+--enable-sharedを付けてconfigureすると、*.soと*.aの両方が出来上った
+
+ffmpegコマンドIFはダイナミックリンクされている
+# readelf -d ffmpeg
+ 0x00000001 (NEEDED)                     Shared library: [libavdevice.so.57]
+ 0x00000001 (NEEDED)                     Shared library: [libavfilter.so.6]
+ 0x00000001 (NEEDED)                     Shared library: [libavformat.so.57]
+ 0x00000001 (NEEDED)                     Shared library: [libavcodec.so.57]
+ 0x00000001 (NEEDED)                     Shared library: [libswresample.so.2]
+ 0x00000001 (NEEDED)                     Shared library: [libswscale.so.4]
+ 0x00000001 (NEEDED)                     Shared library: [libavutil.so.55]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so.6]
+ 0x00000001 (NEEDED)                     Shared library: [libpthread.so.0]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so.6]
+
+でSharedとStaticライブラリをインストール
+# make install
+※FFMPEGとOPenCVを一緒にビルドする際、FFMPEGがStaticライブラリだとOpenCVのリンクに失敗(原因不明)
+これを避けるためFFMPEGをSharedとStatic両方のライブラリを準備して、OpenCVもSharedでビルド
+
+[■Staticなケースを試す　--enable-sharedなしのconfigure]
+# cat conf.sh
+
+CCPREFIX=/home/kenji/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-
+./configure \
+ --enable-cross-compile \
+ --cross-prefix=${CCPREFIX} \
+ --arch=armel \
+ --target-os=linux \
+ --prefix=/home/kenji/libs/ffmpeg_armhf | tee log
+
+# conf.sh
+ffplayが作られないよってlogに出ているが、gtkの関係かも
+logを見ると、shared no、static yes　になってる
+
+# make
+# find . -name \*.a
+./libavdevice/libavdevice.a
+./libavfilter/libavfilter.a
+./libswscale/libswscale.a
+./libavutil/libavutil.a
+./libavformat/libavformat.a
+./libswresample/libswresample.a
+./libavcodec/libavcodec.a
+# find . -name \*.so
+.soは作られていないな
+
+ffmpegコマンドIFはスタティックリンクされている
+# readelf -d ffmpeg
+ 0x00000001 (NEEDED)                     Shared library: [libm.so.6]
+ 0x00000001 (NEEDED)                     Shared library: [libpthread.so.0]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so.6]
+
+
+[■FFMPEG静的・動的のコンパイルまとめ]
+デフォルトはStaticライブラリらしい、ffmepgもStaticリンクで、ライブラリも*.aのみ
+configure --enable-sharedでSharedライブラリも作られてffmepgはSharedリンク、ライブラリは*.soと*.a両方生成
+
+・FFmpeg with libaacplus, libx264 and alsa-lib
+aacとalsaは音、x264は画像なライブラリだろう
+basicなビルドでも相当な種類のCodecが使えそうで安心:-)
+
+[■DE0でFFMpegなOpenCVアプリを試す]
+
+・OpenCVのVideoCaptureオブジェクトでaviファイルの再生をDE0で試すが、
+VideoCaptureオブジェクトがエラー終了
+どうやらFFMpegだけでは動画ファイルの再生はできず、V4L2(カーネル再構築)が必要らしい
+
+・カーネルをV4L2をオンで再構築し、microSDカードを書き換える
+UVCカメラの起動などOKな状態になっていることは確認済み
+で、aviファイル再生に失敗する原因を調べる
+
+・ffmpegで再生可能な動画フォーマットを調べる
+ARM版ffmpegのライブラリ作成時に作られるffmpegコマンドをDE0へ転送して起動
+ffmpeg -f video4linux2 -list_formats all -i /dev/video0
+...
+Raw		: yuyv:		: YUV 4:2:2
+Compressed	: mjpeg:	:MJPEG
+と出るなぁ～h264などの再生はサポートされていないみたい;-<
+
+・ffmpegでMotionJPEGファイル録画を試す
+MJPEGがサポートされているらしいので試す
+DE0へUVCカメラを接続して(MJPEGの拡張子は.movらしい)
+# ffmpeg -f video4linux2 -input_format mjpeg -i /dev/video0 -c:v copy output.mov
+これでカメラ映像をMJPEGで録画できるか？
+おっとぉ～Warningがでますがぁ、output.movはでけました:o)
+
+・x86でMJPEGを再生
+output.movをPCへ転送
+x86版ffmpegのライブラリ作成時に作られるffplayコマンドで再生
+# ffplay output.mov
+ぅおぉ～、UVCカメラの映像が再生されました:-)
+
+・h264をサポートするためには、外部ライブラリ(x264など)を取り込んで
+FFMpegを再ビルドする必要があるのかも;-<
+音声用のライブラリも必要なのかなぁ

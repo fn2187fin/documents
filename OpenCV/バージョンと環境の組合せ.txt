@@ -1,0 +1,19 @@
+﻿[■OpenCVと環境の組合せ]
+CPUとOS、shell、Compilerの組合せが多数↓
+----------------------------------------------------------
+  CPU   OS        Shell   Compiler
+----------------------------------------------------------
+①x64 + Windows + cmder + cl  (VC++)
+②    |         + cmder + gcc (Mingw)
+③    |         + SoCEm + armhf-linux-gnueabihf-gcc (ALTERA)
+④    |
+⑤    + Linux   + *any* + gcc
+⑥              + *any* + armhf-linux-gnueabihf-gcc
+
+⑦ARM + Linux   + *any* + None
+----------------------------------------------------------
+
+各組合せでビルドの方法やOpenCVのバージョン違いでビルドに失敗するケースがある
+まとめてみる;-<
+
+

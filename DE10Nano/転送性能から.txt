@@ -1,0 +1,282 @@
+DE10NanoでのDDR2転送性能を試す github : gem_nn_FPGA_Estimate
+
+！最も重要
+matrix演算を起動すると、1回目(1層目)は遅い！以下の測定ではこの事実を考慮していないので実行時間は不正確であり、傾向を見る程度の結果である
+(FPGAの動作にCPUキャッシュが関係しているらしく、BLASでの動作と傾向が同じであった)
+
+naive:オリジナルGEMMのアルゴ
+@ARMでは、
+2,230msec
+
+@ARM+FPGAでは、OpenCLのvloadnを利用するケースでは、GEMMのM,N,Kパラメータの内、
+Kを9の倍数に制限する
+ことでvload3x3を利用できるようにして、
+2,623msec
+
+CPUより遅い;-<
+これでは使い物にならないので、OpenEXRのhalfを利用してhalf処理し転送量を減らしたvload_half3x3で、
+1,765msec
+
+さらにvload_half16として、転送サイズとkループ回数を削減して、
+521msec
+わぁ～ぉ、速い:-)
+
+これなら使えるかもぉ～っということで
+■結論
+①vload_half16で読み込む
+②naiveなGEMMは、i/k/j(M/K/N)のループだが、
+↓
+i/j/k(M/N/K)にする、よってB行列のim2col結果をcolumn majorに変形する
+③Kが9の倍数用kernelと16の倍数用kernelを2つ用意する
+
+以上で1FPSのめどは立った(ほんとかぁ？:-)
+
+※row-major/column-major注記
+naiveアルゴでのA,B,C行列はrow-major
+その他はA,Cはrow-majorだが、B行列は下記
+B-row-major    :[row][column] Z方式 (C/C++)なB行列を入力して演算
+B-column-major :[column][row] invered-N方式(Fortran)なB行列を入力して演算
+
+※gcc -Ofastオプション
+速度比較する際に、gccの-Ofastオプションを忘れるとARM側がとんでもなく遅く見える
+gcc -Ofastオプションは偉大だなぁ;-)
+
+■vloadnでの転送性能
+V100 T5-Sでのvloadnを対象
+B-row-major
+          msec
+vload16       8
+vload8       11
+vload4       12
+vload2       24
+
+速い！
+
+■@FPGAで、assignとvloadn読み込み書き出しのみ
+下表の通り、GEMMのDDR2アクセスは、1.7GBPS程度
+B-row-major
+          msec
+1B acc.
+vload2*     540  (≒1.698GBPS)
+vload3      537  (≒1.698GBPS)
+vload4*     525  (≒1.698GBPS)
+vload8*     524  (≒1.698GBPS)
+vload16*    540  (≒1.698GBPS)
+※2,4,8,16ワードの読み書きは、行列全体を処理できないBUGあり
+
+遅い！
+
+■Convolution演算
+下表の通り、GEMMのDDR2アクセス＋Convolution演算は、最大0.34GMPS
+ttt5_vga2相当のGEMM演算に2.6sec必要で、使いモノにならない
+
+改善2案あり
+※DDR周りのクロックアップ　          OpenCLでは最大周波数を指定できない仕様になっている
+※half-precisionで転送量を削減　　　 速い:-)
+
+以下naiveはA,B,Cすべてrow-major、その他B-column-major
+▼vload3(K%3==0なので)のケース
+naive       8,335 (≒110MBPS)
+vl3/*/Σ    2,840 (≒320MBPS)
+vl3x3/*/Σ  2,623 (≒346MBPS)
+
+vload3でfloat3xfloat3、Σを取るケースはnaiveの3倍速い
+vload3を３つ組み合わせてvload9を代用すると、ちょっと速いが9倍とはならない
+
+▼vload16のBUGありケース
+vload16で行列全体を処理できると16倍速い？なら520msecで1処理？
+naive     8,335 (≒110MBPS) ARMより遅い;-<
+vl16/*/Σ   926 (≒990MBPS)
+
+BUGありではあるが、vload16でfloat16xfloat16、Σを取るとnaive(1Bアクセス)の9倍速い
+
+※vload3はnaiveと答えが一致している
+　vload16はKが16の倍数の時は答えが一致している
+
+■OpenCL half-precisionを使う　速い
+
+▼kernelの入力をhalf-precisionのポインタとする
+kernel gemm_nn_9W(..., global half *restrict A, ...)
+
+▼host側で演算対象データ配列をfloat から halfに変換して、cl_memとして渡す
+float⇒half-precision変換
+OpenEXRのhalf型を使う
+
+※OpenEXRのARMライブラリはDebianのリポからダウンロードしてリンクする
+http://ftp.jp.debian.org/debian/pool/main/i/ilmbase/libilmbase6_1.0.1-6.1_armhf.deb
+http://ftp.jp.debian.org/debian/pool/main/i/ilmbase/libilmbase-dev_1.0.1-6.1_armhf.deb
+$ dpkg --extract hogehoge.deb .
+$ dpkg --extract hogehoge-dev.deb .
+↑これでカレントのusr/lib/arm-linux-gnueabihf/以下に.soが出来るので-Lでディレクトリを指定してリンク
+fpgaのemulationモードで動作確認した:-)
+
+※OpenEXRのIntelCPUライブラリはWebからソースを取ってコンパイル
+http://www.openexr.com/downloads.html
+$ ./configure
+$ make
+$ make install
+で、/usr/local/lib/*I*soなどが出来るので-Lでディレクトリを指定してリンク
+がしかし、GPUではSegVでコケるのあきらめ;-P halfが使えないのかなぁ
+
+▼half-precision FPGA演算性能評価
+naive                  8,348 (≒ 55MBPS) single-precisionと同じ処理時間なので実質性能劣化;-<
+naive+vl16,16,3/*/Σ  21,261 (≒ 10MBPS) naiveで35B単位演算、あらら最悪
+vl16/*/Σ                526 (≒872MBPS) 速い！
+vl3x3/*/Σ             1,765 (≒260MBPS) 処理時間改善 2,623msec(≒346MBPS) ⇒ 11,765msec(≒260MBPS)ただし誤差大！
+
+▼演算結果が不一致？2048.00以下しか演算できないらしい
+2,200以上の大きな数値の演算誤差が目立つ
+
+※naive+vl16,16,3/*/Σ　すべてhalf-precision演算なので2048以上は表現されない
+In Program kernel[0] name = gemm_nn9W
+M/N/K = 16      35840   27:     :       real time =   750.484600 msec   :27.000000[0]   27.000000[1]    27.000000[2]
+M/N/K = 32      8960    144:    :       real time =  1881.113410 msec   :144.000000[0]  144.000000[1]   144.000000[2]
+M/N/K = 128     560     288:    :       real time =  1005.627090 msec   :288.000000[0]  288.000000[1]   288.000000[2]
+M/N/K = 512     35      1152:   :       real time =  2404.457480 msec   :1152.000000[0] 1152.000000[1]  1152.000000[2]
+M/N/K = 512     35      4608:   :       real time =  9610.886370 msec   :2048.000000[0] 2048.000000[1]  2048.000000[2]
+M/N/K = 256     35      513:    :       real time =   539.046720 msec   :513.000000[0]  513.000000[1]   513.000000[2]
+M/N/K = 512     35      2304:   :       real time =  4803.654670 msec   :2048.000000[0] 2048.000000[1]  2048.000000[2]
+M/N/K = 125     35      513:    :       real time =   263.626450 msec   :513.000000[0]  513.000000[1]   513.000000[2]
+M/N/K = 5       5       5:      :       real time =     2.525720 msec   :0.000000[0]    0.000000[1]     0.000000[2]
+real time = 21261.422510 msec
+
+※vl3x3/*/Σhalfをfloatで読むような構成なので全halfよりは多少精度が上がっている
+In Program kernel[0] name = gemm_nn9W
+M/N/K = 16      35840   27:     :       real time =   139.559380 msec   :27.000000[0]   27.000000[1]    27.000000[2]
+M/N/K = 32      8960    144:    :       real time =   334.323140 msec   :144.000000[0]  144.000000[1]   144.000000[2]
+M/N/K = 128     560     288:    :       real time =   152.228520 msec   :288.000000[0]  288.000000[1]   288.000000[2]
+M/N/K = 512     35      1152:   :       real time =   141.841080 msec   :1152.000000[0] 1152.000000[1]  1152.000000[2]
+M/N/K = 512     35      4608:   :       real time =   664.034120 msec ※:4324.000000[0] 4324.000000[1]  4324.000000[2]
+M/N/K = 256     35      513:    :       real time =    34.136140 msec   :513.000000[0]  513.000000[1]   513.000000[2]
+M/N/K = 512     35      2304:   :       real time =   280.839530 msec ※:2276.000000[0] 2276.000000[1]  2276.000000[2]
+M/N/K = 125     35      513:    :       real time =    17.678240 msec   :513.000000[0]  513.000000[1]   513.000000[2]
+M/N/K = 5       5       5:      :       real time =     1.039450 msec   :0.000000[0]    0.000000[1]     0.000000[2]
+real time =  1765.679600 msec
+
+firefox gemm1/reports/report.htmlで各部品の所要処理時間を確認すると、vloadに係わる部分のみが表示される
+vload 160cycles/vload_half 130cycles
+↑この違いが全体の処理時間の違いに影響している
+
+-high-effortでコンパイルしたが、
+1,761msec
+と、ほぼ変わらず
+
+■8bit固定少数点で演算する
+char.cl
+column-major
+vload_half16/vload_half3x3/K列バッファ
+
+演算誤差は巨大だが、速い
+
+In Program kernel[0] name = gemm_nn9W
+In Program kernel[1] name = gemm_nnfW
+M/N/K = 16      35840   27:     :       real time =    83.509240 msec   :0.031250[0]    0.031250[1]     0.031250[2]
+M/N/K = 32      8960    144:    :       real time =    56.824410 msec   :0.218750[0]    0.218750[1]     0.218750[2]
+M/N/K = 128     560     288:    :       real time =    20.022830 msec   :0.453125[0]    0.453125[1]     0.453125[2]
+M/N/K = 512     35      1152:   :       real time =    25.876770 msec   :1.843750[0]    1.843750[1]     1.843750[2]
+M/N/K = 512     35      4608:   :       real time =    90.801840 msec   :3.375000[0]    3.375000[1]     3.375000[2]
+M/N/K = 256     35      512:    :       real time =     7.621460 msec   :0.812500[0]    0.812500[1]     0.812500[2]
+M/N/K = 512     35      2304:   :       real time =    47.394640 msec   :3.687500[0]    3.687500[1]     3.687500[2]
+M/N/K = 125     35      512:    :       real time =     4.516000 msec   :0.812500[0]    0.812500[1]     0.812500[2]
+real time =   336.567190 msec
+
+■もっとも速いケースでの結果
+gemm1_halfxfK_halfx9.cl
+column-major
+vload_half16/vload_half3x3/K列バッファ
+614msec(ttt5_224_160.cfg相当のGEMM)
+
+▼リソース
+Kが9の倍数用と16の倍数用の2つのkernelを準備する必要があり
+logic 81%
+ALUTs 53%
+reg   33%
+BRAM  45%
+DSP   33%
+で、logic utilizationはいっぱい:-O
+
+In Program kernel[0] name = gemm_nn9W
+In Program kernel[1] name = gemm_nnfW
+M/N/K = 16      35840   27:     :       real time =   132.882910 msec   :2.699219[0]    2.699219[1]     2.699219[2]
+M/N/K = 32      8960    144:    :       real time =    96.327430 msec   :14.398438[0]   14.398438[1]    14.398438[2]
+M/N/K = 128     560     288:    :       real time =    31.114650 msec   :28.796875[0]   28.796875[1]    28.796875[2]
+M/N/K = 512     35      1152:   :       real time =    49.443450 msec   :115.187500[0]  115.187500[1]   115.187500[2]
+M/N/K = 512     35      4608:   :       real time =   188.546040 msec   :460.750000[0]  460.750000[1]   460.750000[2]
+M/N/K = 256     35      512:    :       real time =    13.934290 msec   :51.187500[0]   51.187500[1]    51.187500[2]
+M/N/K = 512     35      2304:   :       real time =    93.973380 msec   :230.375000[0]  230.375000[1]   230.375000[2]
+M/N/K = 125     35      512:    :       real time =     8.438570 msec   :51.187500[0]   51.187500[1]    51.187500[2]
+real time =   614.660720 msec
+
+■更に速いケース
+gemm1_halfxfK_halfx9.cl
+column-major B行列
+vload_half16/vload_half3x3/K列バッファ/-fpc -fp-relaxedオプションコンパイル
+527msec(aocオプションにより90msec高速化した)
+
+▼リソース
+logic 116%
+ALUTs  87%
+reg    38%
+BRAM   36%
+DSP    33%
+で、logic utilizationはいっぱいいっぱい:-O
+
+Reprogramming device [0] with handle 1
+In Program kernel[0] name = gemm_nn9W
+In Program kernel[1] name = gemm_nnfW
+M/N/K = 16      35840   27:     :       real time =   143.384300 msec   :2.699219[0]    2.699219[1]     2.699219[2]
+M/N/K = 32      8960    144:    :       real time =    89.431060 msec   :14.398438[0]   14.398438[1]    14.398438[2]
+M/N/K = 128     560     288:    :       real time =    29.176170 msec   :28.796875[0]   28.796875[1]    28.796875[2]
+M/N/K = 512     35      1152:   :       real time =    37.902810 msec   :115.187500[0]  115.187500[1]   115.187500[2]
+M/N/K = 512     35      4608:   :       real time =   136.119480 msec   :460.750000[0]  460.750000[1]   460.750000[2]
+M/N/K = 256     35      512:    :       real time =    13.044660 msec   :51.187500[0]   51.187500[1]    51.187500[2]
+M/N/K = 512     35      2304:   :       real time =    67.979660 msec   :230.375000[0]  230.375000[1]   230.375000[2]
+M/N/K = 125     35      512:    :       real time =     7.671870 msec   :51.187500[0]   51.187500[1]    51.187500[2]
+real time =   524.710010 msec
+
+■B行列をバッファに溜められる分だけ計算するケース
+gemm1_halfxfK_halfx9.cl
+column-major B行列
+vload_half16/vload_half3x3/Kバッファ/-fpc -fp-relaxedオプションコンパイル
+BRAMをB行列バッファ用に目いっぱい(91%)用意して、溜め込めたB行列の部分だけ計算する、行列全体は演算しない
+430msec
+
+In Program kernel[0] name = gemm_nn9W
+In Program kernel[1] name = gemm_nnfW
+M/N/K = 16      35840   27:     :       real time =   143.122950 msec   :2.699219[0]    2.699219[1]     2.699219[2]
+M/N/K = 32      8960    144:    :       real time =    55.229450 msec   :14.398438[0]   14.398438[1]    14.398438[2]
+M/N/K = 128     560     288:    :       real time =    16.828730 msec   :28.796875[0]   28.796875[1]    28.796875[2]
+M/N/K = 512     35      1152:   :       real time =    35.284100 msec   :115.187500[0]  115.187500[1]   115.187500[2]
+M/N/K = 512     35      4608:   :       real time =   103.952090 msec   :460.750000[0]  460.750000[1]   460.750000[2]
+M/N/K = 256     35      512:    :       real time =    11.238310 msec   :51.187500[0]   51.187500[1]    51.187500[2]
+M/N/K = 512     35      2304:   :       real time =    58.074150 msec   :230.375000[0]  230.375000[1]   230.375000[2]
+M/N/K = 125     35      512:    :       real time =     6.358020 msec   :51.187500[0]   51.187500[1]    51.187500[2]
+real time =   430.087800 msec
+
+■更に速いケース
+gemm1_halfxfK_halfx9.cl
+column-major B行列
+vload_half16/vload_half3x3/Kバッファ/-fpc -fp-relaxedオプションコンパイル
+BRAMをB行列バッファ用に目いっぱい(91%)用意して、
+　溜め込めたB行列の部分はバッファから読んで演算する
+　溜められなかった残りのB行列はメモリから呼んで演算する
+512msec
+
+▼リソース
+logic 124%
+ALUTs  92%
+reg    42%
+BRAM   91% <=しぇー
+DSP    49%
+
+In Program kernel[0] name = gemm_nn9W
+In Program kernel[1] name = gemm_nnfW
+M/N/K = 16      35840   27:     :       real time =   143.231480 msec   :2.699219[0]    2.699219[1]     2.699219[2]
+M/N/K = 32      8960    144:    :       real time =    89.156650 msec   :14.398438[0]   14.398438[1]    14.398438[2]
+M/N/K = 128     560     288:    :       real time =    26.687360 msec   :28.796875[0]   28.796875[1]    28.796875[2]
+M/N/K = 512     35      1152:   :       real time =    35.392150 msec   :115.187500[0]  115.187500[1]   115.187500[2]
+M/N/K = 512     35      4608:   :       real time =   134.930090 msec   :460.750000[0]  460.750000[1]   460.750000[2]
+M/N/K = 256     35      512:    :       real time =    11.578340 msec   :51.187500[0]   51.187500[1]    51.187500[2]
+M/N/K = 512     35      2304:   :       real time =    65.025000 msec   :230.375000[0]  230.375000[1]   230.375000[2]
+M/N/K = 125     35      512:    :       real time =     6.355740 msec   :51.187500[0]   51.187500[1]    51.187500[2]
+real time =   512.356810 msec

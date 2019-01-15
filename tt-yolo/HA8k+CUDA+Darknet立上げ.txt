@@ -1,0 +1,79 @@
+V100 GPGPUをHA8000+CentOS7に載せたので、darknet起動までの記録
+
+①CUDA-9.1
+  nVIDIAのHPに従い、インストール
+
+②nvccのパス
+　/usr/local/cuda-9.1/binをPATHに入れる
+
+③darknetをclone
+  git clone https://github.com/pjreddie/darknet darknet-v3
+  これでdarknetVersion3をclone
+
+④make
+  $ make
+  opencvが無い！怒られるのでMakefileを修正しまずはopencv抜きでdarknetのコンパイル
+　$ make
+  gcc: error trying to exec 'cc1plus': execvp: No such file or directory
+  今度はgccがc++をサポートしていない！怒られるのでgccのc++サポートをインストール
+  $ sudo yum install gcc-c++
+  $ make
+  無事darknetコンパイル完
+
+
+⑤gtk
+  ウィンドウ出ないと不便だから
+  $ sudo yum install gtk2-devel
+
+⑥opencvインストール
+  opencvがなければカメラ入力やらjpegの不備やら色々問題が出るのでopencv+darknetを立ち上げる
+  実績重視で、opencvは2.4.9
+  cmakeは必須
+　$ sudo yum install cmake
+  ソース取得
+　$ wget http://downloads.sourceforge.net/project/opencvlibrary/opencv-unix/2.4.9/opencv-2.4.9.zip
+  $ cd opencv-2.4.9;mkdir buildx;cd buildx
+  $ cat ../sh.cmake
+
+#! /usr/bin/sh
+export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
+cmake \
+-DCMAKE_C_COMPILER=gcc \
+-DCMAKE_CXX_COMPILER=g++ \
+-DCMAKE_BUILD_TYPE=RELEASE \
+-DBUILD_TESTS=OFF \
+-DBUILD_PERF_TESTS=OFF \
+-DWITH_OPENCL=OFF \
+-DWITH_FFMPEG=OFF \
+-DWITH_CUDA=off \
+..
+
+  $ ../sh.cmake | tee log
+  $ make -j 32
+  はっやい　仮想CPUが32個！　opencvでさえ1分もかからん
+  $ sudo make install
+
+  $ ls /usr/local/lib
+libavcodec.a                libopencv_contrib.so.2.4       libopencv_flann.so.2.4      libopencv_imgproc.so.2.4    libopencv_nonfree.so.2.4      libopencv_stitching.so.2.4    libopencv_videostab.so
+libavdevice.a               libopencv_contrib.so.2.4.9     libopencv_flann.so.2.4.9    libopencv_imgproc.so.2.4.9  libopencv_nonfree.so.2.4.9    libopencv_stitching.so.2.4.9  libopencv_videostab.so.2.4
+libavfilter.a               libopencv_core.so              libopencv_gpu.so            libopencv_legacy.so         libopencv_objdetect.so        libopencv_superres.so         libopencv_videostab.so.2.4.9 libavformat.a               libopencv_core.so.2.4          libopencv_gpu.so.2.4        libopencv_legacy.so.2.4     libopencv_objdetect.so.2.4    libopencv_superres.so.2.4     libpostproc.a
+libavutil.a                 libopencv_core.so.2.4.9        libopencv_gpu.so.2.4.9      libopencv_legacy.so.2.4.9   libopencv_objdetect.so.2.4.9  libopencv_superres.so.2.4.9   libswresample.a
+libopencv_calib3d.so        libopencv_features2d.so        libopencv_highgui.so        libopencv_ml.so             libopencv_photo.so            libopencv_ts.a                libswscale.a
+libopencv_calib3d.so.2.4    libopencv_features2d.so.2.4    libopencv_highgui.so.2.4    libopencv_ml.so.2.4         libopencv_photo.so.2.4        libopencv_video.so            libyasm.a
+libopencv_calib3d.so.2.4.9  libopencv_features2d.so.2.4.9  libopencv_highgui.so.2.4.9  libopencv_ml.so.2.4.9       libopencv_photo.so.2.4.9      libopencv_video.so.2.4        pkgconfig
+libopencv_contrib.so        libopencv_flann.so             libopencv_imgproc.so        libopencv_nonfree.so        libopencv_stitching.so        libopencv_video.so.2.4.9      python2.7
+
+  $ ls /usr/local/lib/python2.7/site-packages/
+cv.py  cv2.so
+
+$ python            
+Python 2.7.5 (default, Aug  4 2017, 00:39:18)                         
+[GCC 4.8.5 20150623 (Red Hat 4.8.5-16)] on linux2                     
+Type "help", "copyright", "credits" or "license" for more information.
+>>> import cv2                                                        
+>>> cv2.__version__                                                   
+'2.4.9'                                                               
+>>>      
+
+でけたぁ～
+                                                             

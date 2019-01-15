@@ -1,0 +1,68 @@
+YoctoをDE10-Nano向けに立ち上げてみる
+
+参照URL↓Linuxの新定番Yoctoを使ってみよう！
+https://www.aps-web.jp/academy/linux_cycl/02/
+
+↑ここではubuntu上で作業しているので、Ubuntu-14.05LTSをVirtualBox上に立上げて、その上で作業
+
+※UbuntuでctrlとCapsLockの交換
+gsettings set org.gnome.desktop.input-sources xkb-options "['ctrl:swapcaps']"
+
+※bitbakeに必要なPackageの追加
+$ sudo apt-get install gawk wget git-core diffstat unzip texinfo gcc-multilib build-essential
+ chrpath socat libsdl1.2-dev xterm make xsltproc docbook-utils fop dblatex xmlto autoconf
+ automake libtool libglib2.0-dev libarchive-dev python-git
+
+■CentOS-7.0＠Intel-PC → VirtualBox → Ubuntu-14.05
+でubuntuで作業開始
+
+■bitbake完了まで
+
+$ git clone https://git.yoctoproject.org/git/poky
+
+$ cd poky
+$ git checkout -b yocto-2.1.1 yocto-2.1.1
+
+smart2とかいうパッケージ管理ツールを使うらしいが、パッチが必要とのことで、
+https://github.com/ubinux/smart2/tree/master-next/pathces-yocto/for_2.1.1/
+↑ここからpatchを3つダウンロード(これがめんどうくさい！）
+githubのページへ行って、各3つのファイルを開き、Rawボタンを押して、出て来たurlをコピーしてwgetで落す;-Pぎゃー
+pockの下でパッチを当てる
+$ patch -p1 < 0001-...
+$ patch -p1 < 0002-...
+$ patch -p1 < 0003-...
+
+$ source oe-init-build-env build.armv7
+　build.armv7が生成され、 build.armv7に移動していることを確認
+
+$ vi conf/local.conf
+  MACHINE ?= beaglebone
+  ↑これ、CycloneV-SoCのマシーンにターゲット変更
+
+bitbakeを速くするために
+$ export BB_NUMBER_THREADS=4
+$ export PALLAREL_MAKE="-j 4"
+※ダウンロードにはwgetとgitの2つが使われるみたいなので、環境変数と.gitconfig両方の設定が要
+
+$ bitbake core-image-sato
+TARGET_SYS   : arm-poky-linux-gnueabi
+MACHINE      : beaglebone
+DISTRO       : poky
+TUNE_FEATURE : arm armv7a vfp neon
+...
+
+勝手にダウンロードしながらビルドするらしいが、MyPCでは十時間以上かかる;-)トホホ
+20 Warnning出ているがcore-image-satoは完了
+
+$ bitbake core-image-sato -c populate_sdk
+binutilsとかヘッダとかgcc系のツールとかlibとかコンパイルしているらしい
+また数時間かかる
+
+bitbake完了
+
+■CentOS-7.0＠Intel-PCで作業開始
+
+■bitbake完了まで
+
+ContOS-7.0ではelfutils-nativeなど2件のコンパイルエラー発生しbitbakeできない
+Ubuntuでは問題無しだが、、、

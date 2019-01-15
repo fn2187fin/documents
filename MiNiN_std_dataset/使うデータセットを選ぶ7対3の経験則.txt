@@ -1,0 +1,84 @@
+﻿7:3の経験則はどうなのか
+[■機械学習はデータセットが全て]
+だと思う:=)
+
+小さなNiNで特徴のハッキリ分かれたデータセットを使う
+つまり
+興味のあるもの∩興味の無いもの≒０
+を目標にデータセットを選ぶ
+
+人、車、背景の3分類
+特に人画像は顔が画像全体の大部分を占める顔認識用のデータセット
+車はcifar10のもので、車が画像の大部分を占める
+背景は、indoorとoutdoorのもの
+
+
+①Faces
+MITから
+http://vis-www.cs.umass.edu/lfw/
+②automobile
+Darknetから
+https://pjreddie.com/darknet/train-cifar/
+③mit_spat
+MITから
+http://people.csail.mit.edu/torralba/code/spatialenvelope/
+④indoor
+MITから
+http://web.mit.edu/torralba/www/indoor.html
+
+
+[■データセットの数的構成]
+興味のあるもの約15000枚、と興味の無いもの約5000枚(7:3とする)
+興味のあるもの約15000枚＝人12000枚、車3000枚
+つまり、
+興味のあるもの：興味の無いもの＝7:3
+
+学習とテストで下記
+▼学習
+$ ../../scripts/checkclass.py labels4.txt train4.list
+*label = labels3.txt
+*list  = train4.list
+labels=3        lists=20233
+          automobile items / total =  3454 /    20233
+              person items / total = 11556 /    20233
+          background items / total =  5223 /    20233
+                       items total = 20233
+ items path
+ 11556 C:/Users/kenji/shared/Darknet/weight/Faces
+  4445 C:/Users/kenji/shared/Darknet/weight/mit_indoor
+  3454 C:/Users/kenji/shared/Darknet/DarketOnWindowsYOLOv2/data/cifar/test3
+   778 C:/Users/kenji/shared/Darknet/weight/mit_spat
+▼テスト
+$ ../../scripts/checkclass.py labels4.txt test4.list
+*label = labels3.txt
+*list  = test4.list
+labels=3        lists=3000
+          automobile items / total =   546 /     3000
+              person items / total =  1677 /     3000
+          background items / total =   777 /     3000
+                       items total =  3000
+ items path
+  1677 C:/Users/kenji/shared/Darknet/weight/Faces
+   664 C:/Users/kenji/shared/Darknet/weight/mit_indoor
+   113 C:/Users/kenji/shared/Darknet/weight/mit_spat
+   546 C:/Users/kenji/shared/Darknet/DarketOnWindowsYOLOv2/data/cifar/test3
+
+[■学習とテスト]
+Windows7+Darknet+OpenCV2.4.9
+CNNモデルはMicroNetworkの1層で学習とテスト
+cifar_minin.cfg
+epoch 5000
+rate 0.5
+decay 0.0005
+最終段はavepoolingだけでsoftmaxせずにlogitのまま
+
+▼結果
+loss ≒ 0.08(92%mAP)
+人、車、背景の分類はしきい値0.6ではっきり分類可能
+
+classifier demoモードでカメラ画像を推論した場合
+$ ./darknet.exe classifier demo data/cifar.data4 cfg/cifar_minin.cfg backup4/cifar_minin.weights -c 0
+
+自分の顔の大写しではperson認識50~80%
+窓の外では100%以上
+16 FPS

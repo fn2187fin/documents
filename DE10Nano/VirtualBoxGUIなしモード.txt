@@ -1,0 +1,48 @@
+VirtualBoxをGUIなしモードで使う
+
+簡単にセットアップできるが、VBoxManage contorol Ubuntu-14.04 power-offが正常に働かない
+
+■VirtualBoxの起動と終了
+
+まずはパスを通す
+Xming xtermとかのターミナルから、
+$ export PATH=/c/Program\ Files/Oracle/VirtualBox:$PATH
+
+①VM起動
+$ VBoxManage startvm 名前 --type headless
+
+名前は、
+VBoxManage list vms
+で調べる
+
+② VM終了
+$ VBoxManage controlvm poweroff
+
+※起動や停止には時間がかかるから、コマンド終了＝＝VM動作ではないので注意
+※起動中のVMをstartvmすると、エラーでコマンドがコケので、起動中か否か分かる
+
+pause     : 一時停止
+savestate : 保存して電源停止
+poweroff  : 電源停止のみ
+
+■sshでのVirtualBox接続を許可する方法
+1度はGUIでVMを立ち上げて、openssh-serverとかのsshdをインストールしておくこと
+リブート
+
+ポート22を開ける方法は、VMが停止中に、
+GUIのVirtualBoxマネージャから
+[ネットワーク]=>[ポートフォワーディング]
+名前　　プロトコル　　ホストIP　　ホストポート　ゲストIP　ゲストポート
+ssh         TCP                         2222          22
+
+CUIでは、
+Xming xtermとかのターミナルから、
+VBoxManage modifyvm 名前 --natpf1 "ssh,tcp,,3022,,22"
+
+※3022は2222とかWellKnown以外なら、たぶんなんでも良い
+
+■sshでVirtualBoxに接続する方法
+Windows Teraterm/Xming xtermとかのターミナルから、
+
+ssh -Y -p 3022 127.0.0.1
+で接続

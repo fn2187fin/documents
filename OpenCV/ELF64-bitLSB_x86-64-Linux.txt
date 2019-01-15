@@ -1,0 +1,20 @@
+﻿ELF 64-bit LSB shared object, x86064, version 1 (GNU/Linux), dynamically linked,
+
+#cat cmake_x86_linux_gcc.sh
+
+cmake -G "Unix Makefiles" \
+-DCMAKE_C_COMPILER=gcc \
+-DCMAKE_CXX_COMPILER=g++ \
+-DCMAKE_BUILD_TYPE=RELEASE \
+-DCMAKE_INSTALL_PREFIX=/home/kenji/win_shared/cv/opencv/x86_Linux_gcc/installed \
+-DBUILD_NEW_PYTHON_SUPPORT=OFF \
+-DBUILD_TESTS=OFF \
+-DBUILD_PERF_TESTS=OFF \
+-DWITH_CUDA=OFF \
+-DWITH_OPENCL=OFF \
+-DWITH_GTK=OFF \
+../sources/
+
+# cmake_x86_linux_gcc.sh
+# make
+# make install

@@ -1,0 +1,18 @@
+chocolatey
+http://iti.hatenablog.jp/entry/2014/11/06/122553
+
+cmdシェルからpowershellを立ち上げてコマンド実行するとインストールされるみたい
+
+@"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" 
+-NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))" 
+&& SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
+
+でけた:->
+
+choco install ctags
+choco install ...
+
+インストール先は、
+/c/ProgramData/choclatey/bin/
+以下らしい
+

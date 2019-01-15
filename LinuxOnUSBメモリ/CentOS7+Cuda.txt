@@ -1,0 +1,69 @@
+﻿CentOS7+CUDA
+
+[■増設ディスクのパーティション]
+Windowsで、増設ディスクの先頭からNTFSパーティションを300GB作成し残りは未使用とする
+これで未使用領域にLinuxがインストールされた
+
+[■ディスプレイケーブル]
+DVI-D → DVI-D
+DVI-I → VGA
+の2本繋ぐ
+(OnBoard Graphicsを有効にしてもBIOSがVGA側に表示されない;-<
+
+DELキーでBIOSへ入る
+
+[■CentOS7のLiveCDをUSBに作る]
+CentOS-7-x86_64-DVD-1708.isoをダウンロード
+Rufus-2.18.exeでUSBへ書込み↓
+https://rufus.akeo.ie/
+
+USBからCentOS7.3のインストール
+Ubuntuとは違いCentOSのインストーラは安定している感じがする
+
+[■NVIDIA/CUDAのドライバーインストール]
+http://blog.livedoor.jp/rootan2007/archives/52090548.html
+↑NVIDIAのドライバーインストールに関する記事
+
+https://developer.nvidia.com/cuda-downloads
+↑linux 64bit CentOS7版をダウンロード
+※CUDAをインストールするとCUDAとGPUドライバも入る
+※cuDNNにCUDAとNVIDIAドライバが必要
+
+nouveauのロードを禁止(/etc/modprobe.d/以下にファイル作成)
+initramfsの再作成
+CUIモードに設定(systemctl set-default multi-user.target)してリブート
+rootで入りNVIDIAドライバのインストール
+GUIモードに設定(systemctl set-default graphical.target)してリブート
+
+途中、CUIモードでの作業になるが、全ラインが見えない、、、
+Ctrl-Lで画面クリアしながら作業、、、つらい
+
+[■CUDAのテスト]
+パス設定 .bashrc
+CUDA_ROOT_DIR="/usr/local/cuda-8.0"
+export CUDA_ROOT_DIR
+PATH="$PATH:${CUDA_ROOT_DIR}/bin"
+export PATH
+LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${CUDA_ROOT_DIR}/lib64/"
+export LD_LIBRARY_PATH
+
+sampleプログラムのコンパイルと実行
+cd ~/NVIDIA_CUDA-8.0_Samples/
+make
+bin/x86_64/linux/release/deviceQuery
+
+[■cuDNNのインストール]
+https://qiita.com/skanai/items/0f0a9bdd7e04d55db981
+↑記事に従う
+
+https://developer.nvidia.com/cuda-downloads
+↑ダウンロード CentOS7用
+
+tar xvfz cudnn-8.0-linux-x64-v5.1.tgz
+cd cuda
+sudo cp lib64/libcudnn* /usr/local/cuda/lib64/
+sudo cp include/cudnn.h /usr/local/cuda/include
+
+↑つまりコピーするだけ
+
+

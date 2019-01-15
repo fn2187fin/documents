@@ -1,0 +1,92 @@
+﻿VOCデータセットから人が大きく写った映像を混ぜる
+[■機械学習はデータセットが全て]
+だと思う:=)
+
+小さなNiNで特徴のハッキリ分かれたデータセットを使う
+つまり
+興味のあるもの∩興味の無いもの≒０
+を目標にデータセットを選ぶ
+
+人、車、背景の3分類
+特に人画像は顔が画像全体の大部分を占める顔認識用のデータセット
+車はcifar10のもので、車が画像の大部分を占める
+背景は、indoorとoutdoorのもの
+
+
+①Faces
+MITから
+http://vis-www.cs.umass.edu/lfw/
+②automobile
+Darknetから
+https://pjreddie.com/darknet/train-cifar/
+③mit_spat
+MITから
+http://people.csail.mit.edu/torralba/code/spatialenvelope/
+④indoor
+MITから
+http://web.mit.edu/torralba/www/indoor.html
+⑤VOC
+PascalVOCから人が画像の半分以上を占めるもの
+
+
+[■データセットの数的構成]
+興味のあるもの約15000枚、と興味の無いもの約5000枚(7:3とする)
+興味のあるもの約15000枚＝人12000枚、車3000枚
+つまり、
+興味のあるもの：興味の無いもの＝7:3
+
+学習とテストで下記
+▼学習
+$ scripts/checkclass.py data/cifar/labels5.txt data/cifar/train5.list
+*label = data/cifar/labels5.txt
+*list  = data/cifar/train5.list
+labels=3        lists=21078
+          automobile items / total =  3454 /    21078
+              person items / total = 12401 /    21078
+          background items / total =  5223 /    21078
+                       items total = 21078
+ items path
+ 11556 C:/Users/kenji/shared/Darknet/weight/Faces
+  4445 C:/Users/kenji/shared/Darknet/weight/mit_indoor
+  3454 C:/Users/kenji/shared/Darknet/DarketOnWindowsYOLOv2/data/cifar/test3
+   778 C:/Users/kenji/shared/Darknet/weight/mit_spat
+   845 C:/Users/kenji/shared/Darknet/weight/VOCperson
+
+▼テスト
+$ scripts/checkclass.py data/cifar/labels5.txt data/cifar/test5.list
+*label = data/cifar/labels5.txt
+*list  = data/cifar/test5.list
+labels=3        lists=3014
+          automobile items / total =   546 /     3014
+              person items / total =  1677 /     3014
+          background items / total =   777 /     3014
+                       items total =  3000
+ items path
+  1677 C:/Users/kenji/shared/Darknet/weight/Faces
+    14 C:/Users/kenji/shared/Darknet/DarketOnWindowsYOLOv2/data/cifar/room
+   664 C:/Users/kenji/shared/Darknet/weight/mit_indoor
+   113 C:/Users/kenji/shared/Darknet/weight/mit_spat
+   546 C:/Users/kenji/shared/Darknet/DarketOnWindowsYOLOv2/data/cifar/test3
+
+[■学習とテスト]
+Windows7+Darknet+OpenCV2.4.9
+CNNモデルはMicroNetworkの1層で学習とテスト
+cifar_minin.cfg
+epoch 5000
+rate 0.5
+decay 0.0005
+最終段はavepoolingだけでsoftmaxせずにlogitのまま
+
+▼結果
+loss ≒ 0.10(90%mAP)
+人、車、背景の分類はしきい値0.6ではっきり分類可能
+
+classifier demoモードでカメラ画像を推論した場合
+$ export PATH=$PATH:/C/opencv-2.4.13/x86_mingw_gcc/x64/mingw/bin/
+$ ./darknet.exe classifier demo data/cifar.data5 cfg/cifar_minin.cfg backup5/cifar_minin.weights -c 0
+
+自分の顔の大写しではperson認識50~80%
+窓の外では100%以上
+16 FPS
+
+上半身の画像だけでも人の認識率が上がった感覚

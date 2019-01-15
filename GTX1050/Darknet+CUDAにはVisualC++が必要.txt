@@ -1,0 +1,27 @@
+CUDAと一緒にDarknetをコンパイルする場合、VisualC++しかサポートされていない
+.lib辺りがVisualC++で作ってあって、mingwのgccではコンパイルできないのだろう
+なので、
+
+DarknetをWindows上でGPU含めて動かすにはVisualC++でDarknetもコンパイルが必要
+
+ってことで;-<
+
+[■DarknetをVSでコンパイルする]
+PCにVS2013 communityが載っていたので、プロジェクトを作ってコンパイル
+
+①WIN32、VS2013のdefine
+　unistd.hの問題はWIN32を指定すると回避できる造りになってた
+
+②DarknetOnWindowsのソース修正
+　struct timezoneの二重定義に対応するためにVS2013のifdefを追加
+　dllimportの使い方が間違っていたので、dllexportに変更
+
+③pthreadVC2.libの指定
+　
+③4996警告の無視
+　printfがどうのこうのだけど、セキュリティはこの際無視
+
+これでコンパイルOK
+
+[■Darknet起動onWindows7]
+OK

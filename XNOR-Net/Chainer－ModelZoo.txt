@@ -1,0 +1,45 @@
+https://github.com/wkentaro/chainer-modelzoo
+こんなところにpretrain済みのChainerモデルがあった
+著作の問題だろうが、一般に学習済モデルは公開されていないのだけど
+
+# git clone https://github.com/wkentaro/chainer-modelzoo
+# cd chainer-modelzoo
+requirements.txtの中に必要なパッケージが書かれているが、全部インストールするのもアレなんで
+必要そうなものを
+
+# pip install gdown  #たぶんダウンロード用のパッケージ
+# cd vgg
+vgg用のファイルダウンロードはvgg/donwload.pyらしいので、
+# python download.py
+data/以下に3つのファイルができた
+　bvlc_vgg16.chainermodel　　chainerのモデル(hdf5)
+　synset_words.txt　　　　番号 leopard, Panthrea pardus
+　leopard.jpg  ヒョウの絵
+
+推定用のスクリプトはvgg/infer.py
+modelの定義はvgg/model.py
+らしいので、infer.py   
+を実行するが、hdf5が不足しているらしい、requirements.txtにもh5pyが必要と
+# aptitude install -y libhdf5-dev
+# pip install h5py
+Cythonが走ってる...;-O pipってaptなんかと一緒に使うのね,,,
+
+# infer.py
+chainerは2.xで大きく変わってる
+chainerのバージョンが高すぎ、ダウングレードする
+# pip install chainer==1.24
+で、それぃっと！
+
+# infer.py
+88.3% leopard
+おおぉ～あってるね
+
+Webから適当なサイズのヒョウの画像をダウンロードしてっと
+# cp some.jpg data/leopard.jpg
+# infer.py
+88% white leopard
+当たってる:-)
+
+でも推定なんですけど、、、遅い
+体感10秒
+

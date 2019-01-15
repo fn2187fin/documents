@@ -1,0 +1,27 @@
+XNOR-Netのあやしいサンプルであるが、一応構造を調べる
+class BinaryXnorConvolution2D
+  →binary_xnor_convolution_2d → x,Wを返す
+    →BinaryXnorConvolution2DFunction
+       →forward_cpuで推定
+         →binarize_cpuでWを2値化=Wb∈{+値, -値}
+         →im2colでxを冗長化=col　∈ R{0~1.0}
+         →numpy.tensordotでcolとWbを掛ける=y
+         →yをrollaxis(3,1)して戻す∈R{+∞~-∞}
+戻り
+
+binarize_cpu(W)
+  A = W[:]で合算する
+  Wb = np.where(W>=0,1,-1)で重みを+1/-1化
+  Wb*Aが答え
+L1ノルム/Nにはなっていないみたい
+
+BatchNormalization(Variable)
+  平均値を中心に標準偏差内に正規化するらしい
+  BinaryXnorConvolution_2Dの戻り値R{+∞~-∞}を正規化するのでR{+∞~-∞}を戻す
+
+link_binary_linear.BinaryLinear
+  →function_binary_linear.binary_liniear
+    →BinaryLinearFunction
+      →forward_cpu
+          Wb = np.where(W>=0,1,-1)で重みを+1/-1化
+          y =x.dot(Wb.T)　dot演算　∈R xの符号にWを反映させるから　∈R{+∞~-∞}

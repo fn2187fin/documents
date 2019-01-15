@@ -1,0 +1,79 @@
+"OpenCV3アプリの移植"へ続く
+
+[■Hello worldを動かす]
+hello worldのmain.cを書いて、Ubuntu上でダイナミックリンクでコンパイル
+# arm-linux-gnueabi-gcc main.c -o xxx
+DE0へ転送し起動、、、ダメだぁCommand not found
+
+# arm-linux-gnueabi-readelf -d xxx
+Shared library: [libc.so.6]
+...
+このlibc.so.6が見つからないのか？
+
+スタティックリンクでコンパイル
+# arm-linux-gnueabi-gcc main.c -o yyy -static
+DE0へ転送し起動、、、hello world OKだね
+
+# arm-linux-gnueabi-readelf -d yyy
+There is no dynamic section in this file.
+依存するライブラリが無い、ちゃんとスタティックリンクできてる
+
+ではEmbedded_Command_Shell.bat@WindowsからmandelbrotのMakefile.armを調整してmain.cをコンパイル
+# make -f Makefile.arm
+bin/zzzを作る
+# arm-linux-gnueabi-readelf -d bin/zzz
+Shared library: [libalteracl.so]
+...
+ダイナミックリンクになってるね
+10個も依存ライブラリがあるけどDE0へ転送して、、、hello world OKだぞぉ
+LD_LIBRARY_PATHの指定も無し
+DE0を調べると、
+export LD_LIBRARY_PATH=/de0_ocl_150_tft/opencl_arm32_rte/host/arm32/lib
+にaltera関連の*.soが置いてあった、また、
+/lib/以下に標準的な*.soが置いてあった
+
+DE0上で/root/.bashrcへLD_LIBRARY_PATHの指定を書き込んでおく
+
+[■arm-linux-gnueabihf-g++を使ってHello World]
+ここまではarm-linux-gnueabi-g++を使ってmain.cppをコンパイルしてきた
+Embedded_Shell_Command.bat@Windowsな環境でのMakefile.armと同様なshellスクリプトな
+
+#!/bin/sh
+arm-linux-gnueabi-g++ \
+-I/home/ogura/altera/15.1/hld/host/include/ \
+main.cpp -fPIC \
+-L/home/ogura/altera/15.1/hld/board/terasic/de1soc/arm32/lib/ \
+-L/home/ogura/altera/15.1/hld/host/arm32/lib/ \
+-o Udyn \
+-Wl,--no-as-needed -lalteracl -lalterahalmmd -lalterammdpcie -lelf -lrt -ldl -lstdc++
+試すが、
+
+# export LD_LIBRARY_PATH=/de0_ocl_150_tft/opencl_arm32_rte/host/arm32/lib
+# ./Udyn
+# Command not found  ;-<
+
+で最後の調整としてarm-linux-gnueabihf-g++を使ってみる
+これはaptで入れたUbuntuのクロスコンパイラじゃなくって、DS-5供給のクロスコンパイラね
+
+#!/bin/sh
+/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-g++ \
+-I/home/ogura/altera/15.1/hld/host/include/ \
+main.cpp -fPIC \
+-L/home/ogura/altera/15.1/hld/board/terasic/de1soc/arm32/lib/ \
+-L/home/ogura/altera/15.1/hld/host/arm32/lib/ \
+-o Udyn \
+-Wl,--no-as-needed -lalteracl -lalterahalmmd -lalterammdpcie -lelf -lrt -ldl -lstdc++
+
+# ./Udyn
+# hello world
+ほぉぉ～OK
+
+ということは
+arm-linux-gnueabi-g++で生成したスタティックリンクな実行可能ファイルはDE0上で動作するが、
+ダイナミックリンクで生成した実行可能ファイルはDE0上ではCommand not foundってことだ;-<
+
+ダイナミックリンクな実行可能ファイルを動かすには、arm-linux-gnueahf-g++を使う必要があるのね
+とほほぉ:-)　意味はまったくわからんが、、、これで自前のアプリをコンパイルして動かすことができそう
+
+Ubuntuの~/.bashrcでPATHに~/altera/15.1/embedded/ds-5/sw/gcc/bin/を追加しておく
+

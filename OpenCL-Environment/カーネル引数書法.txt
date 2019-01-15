@@ -1,0 +1,19 @@
+kernel引数は、
+・渡すのは必ずポインタ
+・配列はcl_mem化
+・変数はcl_float/cl_intなど
+
+ポインタを渡すことが必須なので、
+・intを渡すには、intのポインターを渡し、ポインタではなくintで受け取る
+　↓intポインタを渡すけど、cl_intで受け取れよ！っツー意味
+　int i;
+　clSetKernelArg(kernel, 0, sizeof(cl_int), &i)
+・int配列を渡すには、配列のポインタのポインタを渡し、ポインタのポインタではなくポインタglobal int *で受け取る
+　cl_mem i;
+  i=clCreateBuffer(...)
+　clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&i)
+
+NDRange
+・global_idだけ使えばよい
+・local_idは普通は使わない。local領域(BRAM)をバッファとして使いたい時だけ必要
+・clEnqueueTaskとclEnqueueNDRangeKernel(.. 1, 0, 1, 0, ...)は同じ意味

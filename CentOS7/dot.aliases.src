@@ -1,0 +1,9 @@
+alias psd=pushd
+alias ppd=popd
+
+alias pullg='git pull'
+alias addg='git add'
+alias commitg='git commit -m revise'
+alias diffg='git diff'
+alias statg='git status'
+alias pushg='git push -u origin master'

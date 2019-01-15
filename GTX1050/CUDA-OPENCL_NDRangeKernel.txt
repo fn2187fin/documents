@@ -1,0 +1,23 @@
+﻿
+# PE Space Relation about OpenCL vs. CUDA  
+
+ OpenCL                                                     CUDA
+           +----------+----------+---------+--+----------+
+group_id() |0         |1         |2        |..|       19 | blockIdx
+           +----------+----------+---------+--+----------+
+local_id() |0 1 2 3 4 |0 1 2 3 4 |0  ..  4 |..|0 1 2 3 4 | threadIdx
+           +----------+----------+---------+--+----------+
+global_id()|0 1 2 3 4 |5 6 7 8 9 |10 .. 15 |..|95 ..  99 | blockIdx * blockDim + threadIdx
+           +----------+----------+---------+--+----------+
+
+### In OpenCL
+int *global_work_size[]={100};
+int * local_work_size[]={5};
+clEnqueueNDRangeKernel(.., (100),            (5)             ..);
+                           ^global_work_size  ^local_work_size 
+
+### In CUDA
+dim3 dimGrid(20);
+dim3 dimBlock(5);
+<<< dimGrid, dimBlock >>>
+<<< 20,  5> >>

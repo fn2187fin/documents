@@ -1,0 +1,39 @@
+# configurations by customizer
+
+# shell variables definition
+SORTTYPE=12
+PROGRESSBAR=1
+DEFCOLUMNS=1
+HISTSIZE=1000
+ANSICOLOR=1
+ANSIPALETTE=39524351881
+PS1="[\u@\h \w]\\\$ "
+LANGUAGE=utf8-iconv
+DEFKCODE=utf8-iconv
+INPUTKCODE=utf8-iconv
+PTYINKCODE=utf8-iconv
+PTYOUTKCODE=utf8-iconv
+FNAMEKCODE=utf8-iconv
+URLKCODE=utf8-iconv
+PAGER=less
+EDITOR=vim
+SHELL=/bin/bash
+
+# key bind definition
+bind "\\"	OUT_DIR
+keymap BS	"\b"
+
+# launcher definition
+launch .rpm	"rpm2cpio %C|cpio -tv"	-f "%a %l %u %g %s %m %d %{yt} %*f"
+launch .jpg	eog
+launch .bmp	eog
+launch .png	eog
+launch .csv	libreoffice
+
+# archiver definition
+arch .rpm	"clear; echo ERROR; false"	"rpm2cpio %C|cpio -id %TA"
+
+# additional configurations by customizer
+
+# launcher definition
+launch .ods	libreoffice

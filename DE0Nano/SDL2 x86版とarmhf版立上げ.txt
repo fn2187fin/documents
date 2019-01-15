@@ -1,0 +1,495 @@
+[■SDL2ダウンロード]
+SDL2はここから
+www.libsdl.org
+2.0.5が最新なのでDLしてみる、INSTALL.txtによれば、autoconfらしい
+
+# cd SDL2-2.0.5
+# ./configure
+
+SDL2 Configure Summary:
+Assembly Math   : mmx 3dnow sse sse2
+...
+となり順調
+
+# make
+問題なし
+
+試しに、クロスコンパイルは？
+# export ARCH=arm
+# export CROSS_COMPILE=arm-linux-gnueabi- # ./configure
+
+SDL2 Configure Summary:
+Assembly Math   : mmx 3dnow sse sse2
+...
+となり明らかにx86でのコンフィグらしくクロスコンパイルはどうするのか？
+
+まぁSDL2の練習なのでx86へインストール
+# make clean
+# ./configure
+# make
+# make install
+問題なし
+
+./testディレクトリにサンプルがあるらしいのでREADMEを見る
+コンパイル方法が載っていないが、
+# ./configure
+# make
+can not fine -lGL
+OpenGLのライブラリが無いと,,,　分かってますよ:-)
+
+コンパイルに成功したモノもあったんで、適当にx86上で動かすと
+# SDL_init error: No available video device.
+片っ端からSDLの初期化に失敗する　Videoデバイスが見当たらない...
+
+これは、、、自宅の仮想環境ではSDLは動かないのかもねぇ～;-P)
+
+[■会社のVirtualBoxで動く：会社環境と自前環境の違い]
+
+# ./configure
+...
+Video drivers : dummy x11(dynamic) opengl
+ここが違うなぁ、会社のVirtualBoxだとopenglをVideo-driverが入ってと認識している:-0)
+そんで
+# ./test
+# ./configure
+# make
+OpenGLについて文句は言われないなぁ:-)
+
+# testver
+  OK
+# testwm2
+  OK
+# testgl2
+  Huum,,, OK? 327.41 frames per second
+# testoverlay2
+  Oh...! Monkey here OK
+
+と会社環境ではOpenGLがうまく働くらしいのでlibGLでググると、ubuntuパッケージでは
+libgl1-mesa-dev   : free implementation of the OpenGL API
+の内容にlibGL.soが含まれ、かつ、会社環境にはインストールされている
+
+このパッケージにより自宅の仮想環境でもSDL系アプリが動作するのか？
+
+[■ARMへのクロスコンパイルの試し arm-linux-gnueabihf-*]
+"How To Build SDL 2.0 for ARM"
+https://how-to-build-for-arm.wikispaces.com/sdl2
+一通りクロスコンパイルの方法が載っている↑で、試すと
+
+環境変数でSDL2のバージョン名を指定(SDL2)
+# cat env.source
+
+export SDL2_SRC=~/X11/workbench/sdl2/src
+export SDL2_BUILD=~/X11/workbench/sdl2/build
+export INSTALLDIR=~/X11/workbench/sdl2_armhf
+export PATH=$INSTALLDIR/bin:$PATH
+export TARGETMACH=arm-linux-gnueabihf
+export BUILDMACH=i686-pc-linux-gnu
+export CROSS=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf
+export CC=${CROSS}-gcc
+export LD=${CROSS}-ld
+export AS=${CROSS}-as
+export CXX=${CROSS}-g++
+export SDL2=SDL2-2.0.5
+
+# source env.source
+
+ディレクトリ構造とソース取得、展開
+# cat build1.sh
+source env.source
+build.clean.sh
+mkdir -p sdl2
+mkdir -p $SDL2_SRC
+mkdir -p $SDL2_BUILD
+cd $SDL2_SRC
+wget https://www.libsdl.org/release/${SDL2}.tar.gz
+tar xzvf ${SDL2}.tar.gz
+
+SDL2のconfigure
+includeディレクトリに/usr/local/includeなどが混ざらないように注意;-<
+(ln -s /usr/local/include/X11 ~/altera/15.1/embedded/ds-5/sw/gcc/arm-linux-gnueabihf/libc/usr/include/X11)
+
+# cat build2.sh
+source env.source
+cd $SDL2_BUILD
+../src/${SDL2}/./configure \
+--prefix=$INSTALLDIR \
+--host=$TARGETMACH --disable-pulseaudio \
+--includedir=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/arm-linux-gnueabihf/libc/usr/include/ \
+--disable-assembly \
+--x-includes=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/arm-linux-gnueabihf/libc/usr/include/ \
+--x-libraries=/home/ogura/X11/usr/lib/arm-linux-gnueabihf/ \
+| tee ../../config.log
+
+ビルド
+# cat build3.sh
+source env.source
+cd $SDL2_BUILD
+make
+
+3つのスクリプトを起動
+# build1.sh && build2.sh && build3.sh
+
+build2.shのconfigureのlog.build2の最後に
+...
+Video drivers  : dummy x11(dynamic) opengl
+X11 libraries  : xdbe xshape
+...
+とか出る:-)で、
+
+# cd sdl2/build/
+# find . -name \*.so
+./sdl2/build/build/.libs/libSDL2.so
+
+# find . -name \*.a
+./sdl2/build/build/libSDL2_test.a
+./sdl2/build/build/libSDL2main.a
+./sdl2/build/build/.libs/libSDL2.a
+
+$INSTALLDIRへ
+# make install
+
+[■DE0でアプリ起動 ARMへのクロスコンパイルの試し]
+
+・↓ここからSDL2の適当なサンプルをmain.ccへコピペ
+http://nyaocat.hatenablog.jp/entry/2014/01/27/153145
+
+斜めの赤い線を書くだけ
+# cat main.cc
+
+#include <SDL.h>
+
+int main(int, char ** const)
+{
+    SDL_Init(SDL_INIT_VIDEO);
+    SDL_Window* window = SDL_CreateWindow("Hey",SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,640,480,0);
+    SDL_Renderer* render = SDL_CreateRenderer(window, -1, 0);
+
+
+    SDL_Event ev;
+    while(true){
+            SDL_SetRenderDrawColor(render, 0, 0, 0, 255);
+        SDL_RenderClear(render);
+        while(SDL_PollEvent(&ev))
+        {
+            if (ev.type == SDL_QUIT)
+                return 0;
+        }
+            SDL_SetRenderDrawColor(render, 255, 0, 0, 255);
+        SDL_RenderDrawLine(render,10, 10, 400, 400);
+        SDL_RenderPresent(render);
+    }
+
+    return 0;
+}
+
+・Linux上でSDL2ライブラリとmain.ccをコンパイルするMakefileを準備
+  Makefile.arm-vboxとcommon.mk-vbox
+
+# cat Makefile.arm-vbox
+
+# Where is the Altera SDK for OpenCL software?
+#ifeq ($(wildcard $(ALTERAOCLSDKROOT)),)
+#$(error Set ALTERAOCLSDKROOT to the root directory of the Altera SDK for OpenCL software installation)
+#endif
+#ifeq ($(wildcard $(ALTERAOCLSDKROOT)/host/include/CL/opencl.h),)
+#$(error Set ALTERAOCLSDKROOT to the root directory of the Altera SDK for OpenCL software installation.)
+#endif
+
+#export PATH=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/arm-linux-gnueabihf/bin:$PATH
+# OpenCL compile and link flags.
+AOCL_COMPILE_CONFIG := -I/home/ogura/altera/15.1/hld/host/include
+AOCL_LINK_CONFIG := \
+-L/home/ogura/altera/15.1/hld/board/terasic/de1soc/arm32/lib \
+-L/home/ogura/altera/15.1/hld/host/arm32/lib \
+-lelf -lrt -ldl -lstdc++
+
+# -Wl, --no-as-needed -lalteracl -lalterahalmmd -lalterammdpcie -lelf -lrt -ldl -lstdc++
+MK_SRCS := Makefile.arm-vbox
+EXTLIBS_DIR := ./extlibs_arm
+CXX := arm-linux-gnueabihf-g++
+CC := arm-linux-gnueabihf-gcc
+LD := arm-linux-gnueabihf-ld
+AS := arm-linux-gnueabihf-as
+
+include common.mk-vbox
+
+# cat common.mk-vbox
+
+ifeq ($(VERBOSE),1)
+ECHO := 
+else
+ECHO := @
+endif
+
+# Compilation flags
+ifeq ($(DEBUG),1)
+CXXFLAGS += -g
+else
+CXXFLAGS += -O2
+endif
+
+# Compiler
+CXX ?= g++
+
+# Target
+TARGET := testgo-vbox
+TARGET_DIR := bin
+
+EXTLIBS_DIR ?= ./extlibs
+
+# Directories
+INC_DIRS := . $(EXTLIBS_DIR)/inc
+LIB_DIRS := $(EXTLIBS_DIR)/lib
+
+# Files
+INCS := $(wildcard *.h)
+SRCS := $(wildcard *.cc)
+LIBS := SDL2
+
+# Make it all!
+all : $(TARGET_DIR)/$(TARGET) $(OTHER_TARGETS)
+
+# Host executable target.
+$(TARGET_DIR)/$(TARGET) : common.mk $(MK_SRCS) $(SRCS) $(INCS)
+	@[ -d $(TARGET_DIR) ] || mkdir $(TARGET_DIR)
+	$(ECHO)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fPIC $(foreach D,$(INC_DIRS),-I$D) \
+			$(AOCL_COMPILE_CONFIG) $(SRCS) $(AOCL_LINK_CONFIG) \
+			$(foreach D,$(LIB_DIRS),-L$D) \
+			$(foreach L,$(LIBS),-l$L) \
+			-o $(TARGET_DIR)/$(TARGET)
+
+# Standard make targets
+clean :
+	$(ECHO)rm -f $(TARGET_DIR)/$(TARGET)
+
+.PHONY : all clean
+
+・testgo-vboxをmakeする(bin/testgo-vboxが出来る)
+# make -f Makefile.arm-vbox
+
+・DE0へ転送して環境設定ファイルをソース
+環境設定はmandelbrot系のLD_LIBRARY_PATHを設定してXを起動しているだけ
+
+# cat init_app.sh
+
+SCRIPT_DIR_PATH=/de0_ocl_150_tft
+export ALTERAOCLSDKROOT=$SCRIPT_DIR_PATH/opencl_arm32_rte
+export AOCL_BOARD_PACKAGE_ROOT=$ALTERAOCLSDKROOT/board/c5soc
+export PATH=$ALTERAOCLSDKROOT/bin:$PATH
+export LD_LIBRARY_PATH=$ALTERAOCLSDKROOT/host/arm32/lib:$LD_LIBRARY_PATH
+
+function check_fpga_user_mode() {
+	local FPGA_STATUS=`cat /sys/class/fpga/fpga0/status`
+	if [ "$FPGA_STATUS" == "user mode" ]; then
+		echo "1"
+	else
+		echo "0"
+	fi
+}
+
+if [ -e "/dev/acl0" ]; then
+	echo "driver is already loaded"
+else
+	if [ $(check_fpga_user_mode) == "1" ]; then
+		
+		X &
+		export DISPLAY=:0
+		sleep 2
+		echo " "
+		echo "Start X" $DISPLAY
+
+		if [ ! -e "/dev/acl0" ]; then
+			echo "driver load failed unexpectedly"
+		fi
+	
+		echo "OpenCL Driver loaded"
+	else
+		echo "FPGA is not programmed.  You can't load the driver without an" 
+		echp "FPGA image already progammed into the FPGA"
+		echo ""
+		echo "Are your MSEL jumper settings correct?"
+	fi
+fi
+
+# source init_app.sh
+
+・testgo-vboxを起動
+# chmod +x /tmp/testgo-vbox
+# /tmp/testgo-vbox
+ぉおぉ～赤い斜め線が書けたぁ～:-)
+
+[■SDL2の構造]
+SDL1.2とSDL2では構造がかなり異なるらしい
+互換性はほぼない
+SDL 1.2から2.0への移行
+http://sdl2referencejp.osdn.jp/MigrationGuide.html
+
+SDL2の主構造、Window, Render, Texture
+SDL1.2でWindowは１つしか扱えない
+・Window(描画方法を指定)生成
+・Surface(描画データを保持する)生成
+・SurfaceをWindowに反映(Copy?)させると画面が更新できる
+
+SDL2ではWindowが複数扱える
+・Window(サイズ、位置を指定)生成
+・Render(描画方法を指定)生成
+・Texture(描画データを保持する)生成
+・TextureをRenderに反映させると画面が更新できる
+
+※描画方法として、X11,OpenGL,DirectFBなどをSDL2システムが勝手に選ぶ
+※SurfaceはCPUメモリ上領域で、TextureはGPUメモリ上領域との解説がある
+なのでTextureを複数取得することは効率的に良くない
+だが、GPU非搭載なシステムもあることから本当にGPUメモリを取得するとも限らない
+
+
+[■SDL2_imageライブラリの立上げ]
+SDLで出来ることは、
+・1pixelの書き換え
+・1pixelラインの書き込み
+・四角形の書き込み
+
+bmpファイルなどは別ライブラリなSDL_imageが必須らしい;-<
+
+ソースから立ち上げる
+・↓からソースのダウンロード
+https://www.libsdl.org/projects/SDL_image/
+
+・ビルドの環境は
+# cat env.source
+
+export SDL2_SRC=./src
+export INSTALLDIR=~/X11/workbench/sdl2_armhf
+export PATH=$INSTALLDIR/bin:$PATH
+export TARGETMACH=arm-linux-gnueabihf
+export BUILDMACH=i686-pc-linux-gnu
+export CROSS=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf
+export CC=${CROSS}-gcc
+export LD=${CROSS}-ld
+export AS=${CROSS}-as
+export CXX=${CROSS}-g++
+export SDL2=SDL2_image-2.0.1
+export PKG_CONFIG_PATH=/home/ogura/X11/workbench/sdl2_armhf/lib/pkgconfig
+
+・ビルド構造を作るに
+# cat build1.sh
+
+source env.source
+rm -fr $SDL2_SRC
+ln -s ./$SDL2 ./src
+
+# build1.sh
+
+・configureする
+# cat build2.sh
+
+source env.source
+cd $SDL2_SRC
+../src/./configure \
+--prefix=$INSTALLDIR \
+--host=$TARGETMACH \
+--includedir=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/arm-linux-gnueabihf/libc/usr/include/ \
+--x-includes=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/arm-linux-gnueabihf/libc/usr/include/ \
+--x-libraries=/home/ogura/X11/usr/lib/arm-linux-gnueabihf \
+|& tee ../../log.build2
+cd ..
+
+# build2.sh
+
+・makeする
+# cat build3.sh
+
+source env.source
+cd $SDL2_SRC
+make
+
+# build3.sh
+
+・インストールする
+# cd src
+# make install
+
+[■SDL2_imageアプリのビルド]
+
+・Makefileは
+# cat Makefile.arm-vbox
+
+AOCL_COMPILE_CONFIG := -I/home/ogura/altera/15.1/hld/host/include
+AOCL_LINK_CONFIG := \
+-L/home/ogura/altera/15.1/hld/board/terasic/de1soc/arm32/lib \
+-L/home/ogura/altera/15.1/hld/host/arm32/lib \
+-lelf -lrt -ldl -lstdc++
+
+# -Wl, --no-as-needed -lalteracl -lalterahalmmd -lalterammdpcie -lelf -lrt -ldl -lstdc++
+MK_SRCS := Makefile.arm-vbox
+EXTLIBS_DIR := ./extlibs_arm
+CXX := arm-linux-gnueabihf-g++
+CC := arm-linux-gnueabihf-gcc
+LD := arm-linux-gnueabihf-ld
+AS := arm-linux-gnueabihf-as
+
+include common.mk-vbox
+
+# cat common.mk-vbox
+
+
+ifeq ($(VERBOSE),1)
+ECHO := 
+else
+ECHO := @
+endif
+
+# Compilation flags
+ifeq ($(DEBUG),1)
+CXXFLAGS += -g
+else
+CXXFLAGS += -O2
+endif
+
+# Compiler
+CXX ?= g++
+
+# Target
+TARGET := testimage-vbox
+TARGET_DIR := bin
+
+EXTLIBS_DIR ?= ./extlibs
+
+# Directories
+INC_DIRS := . $(EXTLIBS_DIR)/inc
+LIB_DIRS := $(EXTLIBS_DIR)/lib
+
+# Files
+INCS := $(wildcard *.h)
+SRCS := $(wildcard *.cc)
+LIBS := SDL2 SDL2_image
+
+# Make it all!
+all : $(TARGET_DIR)/$(TARGET) $(OTHER_TARGETS)
+
+# Host executable target.
+$(TARGET_DIR)/$(TARGET) : common.mk $(MK_SRCS) $(SRCS) $(INCS)
+	@[ -d $(TARGET_DIR) ] || mkdir $(TARGET_DIR)
+	$(ECHO)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fPIC $(foreach D,$(INC_DIRS),-I$D) \
+			$(AOCL_COMPILE_CONFIG) $(SRCS) $(AOCL_LINK_CONFIG) \
+			$(foreach D,$(LIB_DIRS),-L$D) \
+			$(foreach L,$(LIBS),-l$L) \
+			-o $(TARGET_DIR)/$(TARGET)
+
+# Standard make targets
+clean :
+	$(ECHO)rm -f $(TARGET_DIR)/$(TARGET)
+
+.PHONY : all clean
+
+↑これでmake
+# make
+# ls bin
+# testimage-vbox
+できた:-0
+
+[■DE0で起動　SDL2_imageアプリ]
+
+libSDL2_image.so*とtestimage-vboxと52.bmp(適当なbmp)を転送して起動
+うぅ～ん、OK:-)
+
+DE0の/usr/local/libへlibSDL2_image.so*をコピーしました(:o)

@@ -1,0 +1,30 @@
+[■VisualOdometoryの試行]
+
+[■x86版]
+↓ここからソース
+https://github.com/avisingh599/mono-vo
+# unzip mono-vo-master.zip
+
+cmakeに対応しているらしいので、
+# OpenCV_DIR=~/libs/opencv-x86+ffmpeg-gtk_basic/release/installed cmake .
+
+# make
+voが実行アプリ
+
+#readelf -d vo
+
+Dynamic section at offset 0xfd78 contains 35 entries:
+  Tag        Type                         Name/Value
+ 0x0000000000000001 (NEEDED)             Shared library: [libopencv_calib3d.so.3.2]
+ 0x0000000000000001 (NEEDED)             Shared library: [libopencv_core.so.3.2]
+ 0x0000000000000001 (NEEDED)             Shared library: [libopencv_features2d.so.3.2]
+ 0x0000000000000001 (NEEDED)             Shared library: [libopencv_highgui.so.3.2]
+ 0x0000000000000001 (NEEDED)             Shared library: [libopencv_imgcodecs.so.3.2]
+ 0x0000000000000001 (NEEDED)             Shared library: [libopencv_imgproc.so.3.2]
+ 0x0000000000000001 (NEEDED)             Shared library: [libopencv_video.so.3.2]
+ 0x0000000000000001 (NEEDED)             Shared library: [libstdc++.so.6]
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so.6]
+ 0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]
+ 0x000000000000000f (RPATH)              Library rpath: [/home/ogura/libs/opencv-3.2_x86+ffmpeg-gtk_basic/release/installed/lib]
+ダイナミックリンクです

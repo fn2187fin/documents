@@ -1,0 +1,307 @@
+※以下OpenCVライブラリをStatic/Dynamicリンクした実行可能ファイルを"OpenCVアプリ"と呼ぶ
+"OpenCV3アプリのNEON_VFPV3最適化"へ続く
+
+[■OpenCVのバージョン]
+ググると、ARMへのOpenCV移植記事は多いが、まともなモノは少ない
+OpenCV2.x.xはIntel以外のPFではテストされていない
+http://www.ridgesolutions.ie/index.php/2013/05/24/building-cross-compiling-opencv-for-linux-arm/
+ここを見ると、ずいぶんと簡単に移植できそうな:-)
+
+最新のgitリポジトリからcloneしたOpenCV、つまり3.xx系の話しで書かれている
+なので、OpenCV2.xではなくOpenCV3.x系をARMへ移植するのが良さそう:-)
+
+OpenCV2.2を試したが、移植用の環境がプアーで断念;-<
+OpenCV3.2を使う
+
+[■cmake一応版テスト]
+クロスコンパイル環境をcmakeで実現している
+上のHPでは、
+platforms/linux/arm-gnueabi.toolchain.cmake
+なるファイルを修正しろとか書かれているが、コンパイラを探すための修正なので、コマンドラインで指定すれば修正不要みたい
+
+# mkdir x;cd x
+# cmake +DSOFTFP=ON \
+-DCMAKE_TOOCHAIN_FILE=../platforms/linux\arm-gnueabi.toolchain.cmake \
+-DCMAKE_CXX_COMPILER=/usr/bin/arm-linux-gnueabi-g++ \
+-DCMAKE_C_COMPILER=/usr/bin/arm-linux-gnueabi-gcc   ..
+
+make! ... 1hで一応コンパイルは通った
+ほんとかいなぁ～で、チェックすると
+# file apps/interactive-calibration/CMakeFiles/opencv_interactive-calibration.dir/calibController.cpp.o
+:ELF 32-bit LSB relocatable, ARM, EABI5 version 1 (SYSV), not stripped
+おぉお～ARM用のバイナリが生成されています:-)
+
+[■OpenCV3.2でcmake]
+OpenCVの最新をcloneする
+# git clone https://github.com/Itseez/opencv.git
+# git clone https://github.com/Itseez/opencv_contrib.git
+
+opencvのソースディレクトリから作業開始
+
+# mkdir build_arm;cd build_arm
+
+改めてcmakeのオプションは下記
+
+・まずおまじない。gnueabi-g*を使うのでFloatingPoint系はソフト処理する指示?
+-DSOFTFP=ON
+
+・インストール先
+-DCMAKE_INSTALL_PREFIX=~/libs/opencv-3.2.0_armgnueabi/release/installed
+
+・toolchainをarm-linux-gnueabiに指定
+-DCMAKE_TOOLCHAIN_FILE=~/libs/opencv/platform/linux/arm-gnueabi.toolchain.cmake
+
+・上はコンパイラやアーカイバーを見つけられないらしいので指定
+-DCMAKE_CXX_COMPILER=/usr/bin/arm-linux-gnueabi-g++
+-DCMAKE_C_COMPILER=/usr/bin/arm-linux-gnueabi-gcc   
+-DCMAKE_AR=/usr/bin/arm-linux-gnueabi-ar
+
+・SIFT, SURFなど特許性のあるcontribも含めてクロスビルドする、DNNやらなんやらも入っちゃう;o)
+-DOPENCV_EXTRA_MODULES_PATH=~/libs/opencv_contrib/modules
+
+・Static Libraryを生成
+-DBUILD_SHARED_LIBS=OFF
+(Staticライブラリとダイナミックライブラリ、両方生成するオプションが不明
+それぞれ生成してmake installすると両方がインストールできるね;->
+
+※cmakeが作るコンパイラ系の設定は
+CMakeFiles/2.8.12.2/CMakeCCompiler.cmake
+CMakeFiles/2.8.12.2/CMakeCXXCompiler.cmake
+内に色々書かれている。特に～NOTFOUND とかには注意要
+
+# make
+1h ... NoErrorで完成、チェック
+#file apps/interactive-calibration/CMakeFiles/opencv_interactive-calibration.dir/calibController.cpp.o
+オッケー:-)
+
+# make install
+opencv.pcはコピーされないので、
+# cp unix-install/opencv.pc /usr/lib/pkgconfig/opencv3arm
+
+[■OpenCV付属アプリのmakeと実行]
+DE0-NANO上Linuxでopencv付属のサンプルを実行してみる
+アプリはStaticリンク版
+
+# cd ~/libs/opencv/samples/cpp/tutorial_code/introduction/display_image
+上記にはdisplay_image.cppがあるので、Makefileを作成して、
+
+# cat Makefile
+CXX = /usr/bin/arm-linux-gnueabi-g++
+LDFLAGS += $(shell pkg-config --libs --static opencv3arm)
+CXXFLAGS += -c -Wall $(shell pkg-config --cflags opencv3arm)
+
+all: display_image
+display_image: display_image.o
+	$(CXX) $< -o $@ $(LDFLAGS) -static
+%.o: %.cpp; $(CXX) $< -o $@ $(CXXFLAGS)
+clean: ; rm -f display_image.o display_image
+
+なぜかpkg-configの--staticが効かないから、-staticを付けたして、Staticリンクする
+
+# make clean && make
+エラー大量!!;-< Staticリンクできないみたい、とホホ
+
+[■実行時に不足しているダイナミック・ライブラリをDE0へ転送する]
+コンパイルしたアプリが必要とするダイナミックライブラリを探してARMへ転送するにはreadelfでリンク物を探す
+# arm-linux-gnueabi-readelf -d display_image
+Shared library: [libopencv_highgui.so.3.2]
+Shared library: [libopencv_imgproc.so.3.2]
+Shared library: [libopencv_core.so.3.2]
+Shared library: [libstdc++.so.6]
+Shared library: [libgcc_s.so.1]
+Shared library: [libc.so.6]
+...
+上記の6つが必要みたいなんで、DE0へ転送してみる、、、だめだぁCommand not found
+
+[■OpenCVとOpenCL対応]
+contribuのmake途中、ログを見ていると、OpenCLに関係していると思えるモジュールのコンパイルが多々走る
+ARM linux上でOpenCLがどう関係しているのか？分からんが
+
+static linkでOpenCVライブラリをコンパイルして、かつ、ExampleやらTestsやらをOnすると、
+static linkされたOpenCVアプリbin/*ができるか？試す
+
+まずはx86で、、、
+[■x86版で最小構成のOpenCVをビルドする]
+cmake \
+-D SOFTFP=ON \
+-D CMAKE_BUILD_TYPE=Release \
+-D CMAKE_INSTALL_PREFIX=~/libs/opencv-3.2_x86/release/installed \ 
+-D OPENCV_EXTRA_MODULES_PATH=~/libs/opencv_contrib/modules \ 
+-D WITH_EIGEN=ON \ 
+-D WITH_IPP=OFF \ 
+-D BUILD_SHARED_LIBS=OFF \ 
+-D BUILD_EXAMPLES=ON \ 
+-D BUILD_TESTS=ON \ 
+-D BUILD_NEW_PYTHON_SUPPORT=OFF \ 
+-D BUILD_PYTHON_SUPPORT=OFF \ 
+-D WITH_OPENCL=OFF \ 
+-D WITH_CUDA=OFF \ 
+-D EIGEN_INCLUDE_PATH=/usr/include/eigen3 \ 
+.. | tee log 
+# make
+
+build_i86/bin/以下に大量のOpenCVアプリが作られたが、
+# readelf -d bin/* | grep Shared | sort -u
+  0x0000000000000001 (NEEDED)             Shared library: 
+[ld-linux-x86-64.so.2]
+  0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]
+  0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]
+  0x0000000000000001 (NEEDED)             Shared library: [libglog.so.0]
+  0x0000000000000001 (NEEDED)             Shared library: [libm.so.6]
+  0x0000000000000001 (NEEDED)             Shared library: [libpthread.so.0]
+  0x0000000000000001 (NEEDED)             Shared library: [librt.so.1]
+  0x0000000000000001 (NEEDED)             Shared library: [libstdc++.so.6]
+  0x0000000000000001 (NEEDED)             Shared library: [libz.so.1]
+となり、これらの9個のライブラリはダイナミックリンクになってしまう
+
+# file bin/cpp-tutorial-display_image
+ARM, EABI5,,,, dynamically linked
+確かにダイナミックリンクなファイルになっとるが、上のライブラリはソースがインストールされていないので
+コンパイルの方法も判らないということか？
+
+bin/cpp-tutorial-display_imageを起動してみたが、
+If on debian, apt-get install libgtk2.0-dev and pkg-config, then re-run cmake or configure...
+どうやらWindowを作るcvNamedWindow()がコケるらしい
+指示に従いcmakeからやり直し
+
+[■ARM版で最小構成のOpenCVをビルドする]
+cmake \
+-D SOFTFP=ON \
+-D CMAKE_INSTALL_PREFIX=~/libs/opencv-3.2_arm/release/installed \ 
+-D CMAKE_TOOLCHAIN_FILE=~/libs/opencv/platforms/linux/arm-gnueabi.toolchain.cmake \
+-D CMAKE_CXX_COMPILER=/usr/bin/arm-linux-gnueabi-g++ \ 
+-D CMAKE_C_COMPILER=/usr/bin/arm-linux-gnueabi-gcc \ 
+-D CMAKE_BUILD_TYPE=Release \ 
+-D OPENCV_EXTRA_MODULES_PATH=~/libs/opencv_contrib/modules \ 
+-D WITH_EIGEN=ON \ 
+-D WITH_IPP=OFF \ 
+-D BUILD_SHARED_LIBS=OFF \ 
+-D BUILD_EXAMPLES=ON \ 
+-D BUILD_TESTS=ON \ 
+-D BUILD_NEW_PYTHON_SUPPORT=OFF \ 
+-D BUILD_PYTHON_SUPPORT=OFF \ 
+-D WITH_OPENCL=OFF \ 
+-D WITH_CUDA=OFF \ 
+-D EIGEN_INCLUDE_PATH=/usr/include/eigen3 \ 
+.. | tee log 
+# make
+
+bin/opencv_test_trackingでコケたが、沢山のOpenCVアプリが生成できてるので、
+# readelf -d bin/* | grep Shared | sort -u
+  0x00000001 (NEEDED)                     Shared library: [ld-linux.so.3]
+  0x00000001 (NEEDED)                     Shared library: [libc.so.6]
+  0x00000001 (NEEDED)                     Shared library: [libgcc_s.so.1]
+  0x00000001 (NEEDED)                     Shared library: [libm.so.6]
+  0x00000001 (NEEDED)                     Shared library: [libpthread.so.0]
+  0x00000001 (NEEDED)                     Shared library: [librt.so.1]
+  0x00000001 (NEEDED)                     Shared library: [libstdc++.so.6]
+7つがダイナミックリンクになっているし、OpenCVアプリ自体、ダイナミックリンクになってる
+
+※DS-5なarm-linux-gnueabihf-gccを使わないと起動しないことが後で判明
+
+[■cmakeで自前のOpenCVアプリをstaticにビルド]
+OpenCVのStaticな*.aは出来上がっても、OpenCVを使用したOpenCVアプリはdynamicリンクになってしまう
+cmakeのお勉強してなんとかぁならんのか
+cmakeを使ったOpenCVOpenCVアプリはCMakeLists.txtに、例えば、
+
+cmake_minimum_required (VERSION 2.6)
+project( dspimg )
+
+set(CMAKE_EXE_LINKER_FLAGS "-static")
+#set(CMAKE_EXE_LINKER_FLAGS "-dynamic")
+#set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+
+find_package( OpenCV REQUIRED )
+add_executable( dspimg dspimg.cc )
+target_link_libraries( dspimg ${OpenCV_LIBS} )
+
+ただし、OpenCV_DIRなる環境変数が必要になる
+# export OpenCV_DIR=~/libs/opencv-3.2_x86/release/installed
+
+こんな感じで-staticとか-dynamicとか指定すると全体をStaticリンクで生成しようとする
+が、makeすると
+# cmake .
+# make
+cannot find -lharfbuzz
+cannot find -latk-1.0
+cannot find -lgdk_pixbuf-2.0
+collect2: error : ld returned 1 exit status ...
+これらのライブラリはライセンスの関係でダイナミックリンクでしか使用できないのだろうなぁ、きっと
+-devパッケージをインストールしても*.aはインストールされない
+
+ひとつひとつ自前でソースを取得して*.aを作って、OpenCVのライブラリ置き場へ設置するのかぁ
+
+[■libharfbuzz.aを生成してlink]
+http://kentaroid.com/harfbuzz%E3%81%AEstatic%E3%83%A9%E3%82%A4%E3%83%96%E3%83%A9%E3%83%AA%E3%82%92%E4%BD%9C%E3%82%8B%E3%80%82win%E3%81%A8mac%E3%80%82/
+ここに従う、
+
+#./autogen.sh   #不足するモノをチェックするスクリプトらしい
+#./configure --enable-static
+--prefix=/home/ogura/libs/opencv-3.2_x86/release/installed/lib
+#make
+これでsrc/.lib/libharfbuzz.aが出来上がる
+
+# cp src/.lib/libharfbuzz.a /usr/lib/x86_64-linux-gnu # ldconfig
+再度dspimgをstaticでmakeし直すと、不足ライブラリからlibharfbuzzが消えた:-)
+
+[■libatk-1.0を生成してlink]
+[■libgdk_pixbuf-2.0を生成してlink]
+やってられない;->
+
+StaticリンクなOpenCVアプリを作れない問題は、決してOpenCVの意地悪ではなく、
+OpenCVが利用している下位ライブラリのライセンス問題である気がする。
+これを突破するには、ライセンス問題を抱えた全てのライブラリを自前でソースから
+コンパイルして*.aを生成する必要がありそう、さらにarm用にコンパイルするなんて、、、
+とてもやっていられない、、
+
+[■DS-5なarm-linux-gnueabihf-*でarm用OpenCVライブラリのビルドやり直し]
+どうやらarm-linux-gnueabi-g*で生成したOpenCVアプリはDE0上で起動しない("HelloWorldの移植.txt"参照)
+ことが分かったので、DS-5なコンパイラでビルドやり直し(ちなみにこのarm-linux-gnueabihf-g++などは4.8系)
+
+-D SOFTFPは外し、"hf"(たぶんWith Hardware Floating Pointの略)をつけたコンパイラ系に変更
+#!/bin/sh
+cmake \
+-D CMAKE_INSTALL_PREFIX=~/libs/opencv-3.2_armhf/release/installed \
+-D CMAKE_TOOLCHAIN_FILE=~/libs/opencv/platforms/linux/arm-gnueabi.toolchain.cmake \
+-D CMAKE_CXX_COMPILER=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-g++ \
+-D CMAKE_C_COMPILER=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-gcc \
+-D CMAKE_AR=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-ar \
+-D CMAKE_BUILD_TYPE=Release \
+-D WITH_EIGEN=OFF \
+-D WITH_IPP=OFF \
+-D BUILD_SHARED_LIBS=OFF \
+-D BUILD_EXAMPLES=OFF \
+-D BUILD_TESTS=ON \
+-D BUILD_NEW_PYTHON_SUPPORT=OFF \
+-D BUILD_PYTHON_SUPPORT=OFF \
+-D WITH_OPENCL=OFF \
+-D WITH_CUDA=OFF \
+-D WITH_GTK=OFF \
+-D WITH_PNG=OFF \
+-D WITH_JPEG=OFF \
+-D WITH_CAROTENE=OFF \
+.. | tee log
+
+# make
+# make install
+無事終了
+# readelf -d bin/* | grep Sh | sort -u
+ 0x00000001 (NEEDED)                     Shared library: [libc.so.6]
+ 0x00000001 (NEEDED)                     Shared library: [libdl.so.2]
+ 0x00000001 (NEEDED)                     Shared library: [libgcc_s.so.1]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so.6]
+ 0x00000001 (NEEDED)                     Shared library: [libpthread.so.0]
+ 0x00000001 (NEEDED)                     Shared library: [librt.so.1]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so.6]
+7つのダイナミックリンクライブラリを含んだTestモジュールが生成された
+OpenCV系のダイナミックリンクライブラリはすべてスタティックにリンクされた様子
+
+bin/opencv_perf_core(opencv coreの性能テスト)をDE0へ転送し実行
+# opencv_perf_core
+おっそーっい、けど、なんか動いてる;-o)
+
+よっくみる
+opencv_perf_core起動中にtopコマンドで見ると
+?CPUを50%使ってる、、DE0はデュアルコアなので1つのCPUだけ目いっぱい:-0
+
+まっいい感じ

@@ -1,0 +1,94 @@
+"Intel SDK for OpenCLをVirtualBoxで.txt"の続き
+
+[■ARM版HelloWold]
+Intel SDK for OpenCLでHelloWorldが動いたけど、構成は
+hello.x86@x86⇒hello.cl@x86
+となっていて、結局はx86上で動いているだけ;-<
+
+hello.arm@arm⇒hello.aocx@fpga
+としてARM+FPGA＠DE0-NANOで動作確認したい;^)
+
+[■x86版Cコードを修正しclCreateProgramWithBinary]
+https://www.altera.co.jp/support/support-resources/design-examples/design-software/opencl/hello-world.html
+↑からv17.0 arm32(Linux and Windows)package(.tgz)を取って展開
+
+hello.aocxをmandelbrotのBSPでaocコンパイル
+Embedded_Command_Shell.batから、
+# export AOCL_BOARD_PACKAGE_ROOT=N:\\win_shared\\DE0_NANO\\OpenCL\\opencl_soc_bsp-de0_nano_with_display\\c5soc
+# aoc --board de0_nano_sharedonly_with_spi_tft device/hello.cl
+
+x86版のHelloWorldでmain.cppを修正してコンパイル
+clCreateProgramWithBinaryでcl_programを生成する
+Platformの検索をIntelからAlteraへ変更
+# make
+
+DE0へ転送して
+# ./host
+armがフリーズ！
+
+[■sodiaの例を参考にチェック]
+↓sodiaの例
+https://rocketboards.org/foswiki/Projects/SodiaBoardOpenCL
+
+①ドライバ類のロード
+# source init_opencl.sh
+# ls /dev/acl0
+/dev/acl0
+# aocl diagnose
+DIAGNOSE_PASSED
+
+②aocxでFPGAをプログラム
+# aocl program /dev/acl0 hello_world.aocx
+
+フリーズ！
+
+あらら
+clCreateProgramWithBinaryを追加したmain.cppと同じ症状？
+
+[■ProgramをU-Bootで行うと]
+DE0ってもしやARMからのプログラミングができないのかと思う
+で、U-Boot時にプログラミングしてみる
+
+helloをコンパイルして生成されるtop.brfでmmcblk0p1(mountして)のsoc_system.rbfを置き換え
+DE0を再起動！
+立ち上がった、ふぅ～
+
+では、ARMからのProgram動作をバイパスする設定を↓
+# export CL_CONTEXT_COMPILER_MODE_ALTERA=3
+
+hostアプリを起動
+# ./hello.arm
+Hello,　Wold!
+成功:-)
+
+[■DE0ではARMからFPGAプログラムできない？]
+DE0はOpenCL未サポートなボードか？
+そもそもOpenCL未サポートなボードって何か？
+ARMからFPGAプログラムできないってことなのか？
+:-)
+
+[■malloc or aligned_alloc?]
+alteraFPGAでDDRを共有する際、アライメントされた領域を使う必要があるのか？
+Xilinxではアライメントが必須だったと思うが、、、Altera OpenCLで試す
+
+main.cppを修正し、mallocで取得した領域をkernelに渡してみる
+char *stringA = (char*)malloc(sizeof(char)*64);
+clCreateBuffer(,,,CL_MEM_USE_HOST_PTR,,stringA,,,)
+stringA[0]=G;
+
+# hello.arm
+Hello, World!
+ちゃんとkernelでstringA領域に書き込んでいるように見える
+
+では、alinged_mallocではっと、
+char *stringA = (char*)malloc(sizeof(char),sizeof(char)*64);
+clCreateBuffer(,,,CL_MEM_USE_HOST_PTR,,stringA,,,)
+stringA[0]=G;
+
+# hello.arm
+Hello, World!
+これもちゃんとkernelでstringA領域に書き込んでいるように見える
+
+Altera OpenCLではalinged_alloc不要なのか？
+CL_MEM_USE_HOST_PTRはDDRを共有するからDMAが走らない(?)
+DDRメモリを共有しているのでアライメントは不要な気もする;0)

@@ -1,0 +1,85 @@
+DE1-SoC_Getting_Start_Guide.pdfの"Running Linux on the DE1-SoC board"の章に従い、
+　・DE1ボードとPCのUSBとを付属USBケーブルでつなぐ
+　・USB-uart変換ドライバーをインストール(COM3は使用済だったのでCOM4になった)
+　・PuTTYをインストールして通信速度を設定して起動(TeraTermだっていい)
+　・PuTTYでシリアル(COM4)に接続
+　・三澤さん作成のMicroSDをスロットインして電源オン
+以上で、DE1上のlinuxのプロンプトが戻ってくるので、root(パスワードなし)でlogin
+linuxバージョン：uname -a
+Linux socfpga 3.13.0-00298-g3c7cbb9-dirty #3 SMP Fri Jul 4 15:42:32 CST 2014 armv7l GNU/Linux
+
+OpenCLのHostとOpenCLカーネルのコンパイルはPCで行う、バイナリの転送環境を整える
+　・PCからDE1へのデータ転送用にEtherを使うので、LANアダプタを島崎さんより借用
+　・Etherケーブルは三澤さん提供のもの(クロスケーブル?)
+　・PC側のLANアダプタは192.168.0.1、linux側は192.168.0.2に設定
+　・linux側のip設定はrebootのたびに消えてしまうので、~/.profile内に記載した
+　・PCのUSB -> LANアダプタ -> Etherケーブル -> DE1のLANポートの経路でPCとDE1接続
+　・転送プログラムWinSCPをインストールしrootでDE1とつなぐ
+以上で、DE1上のファイルシステムへ読み書きができる
+
+OpenCL環境のインストール、DE1_OpenCL_v02.pdfの"OpenCL on Windows"の章に従い、
+　・"aocl_getting_started" に従いインストール
+　・島崎さんよりMyAlteraのID／パスワードを借用(shimazaki-UL/zaki99)
+　・Altera SDK for OpenCLをダウンロード1h(20GB)。
+　・AOCL-15.1.0.185-windows.tarを展開
+　・setup.bat実行し、Cドライブでは空き不足なのでD:\Alteraへ変更
+　・Select componentでCycloneVだけを選択して、USB-BlasterIIもインストール8GB
+　・コマンドプロンプトでecho %ALTERAOCLSDKROOT%を確認、D:\altera\15.1\hld
+　・ユーザ環境変数PATHに、
+　　%ALTERAOCLSDKROOT%\binと%ALTERAOCLSDKROOT%\host\windows64\bin
+　　を追加
+　・ソフト確認、コマンドプロンプトから、
+　　>aocl version
+　　aocl 15.1.0.185 (Altera SDK for OpenCL, Version 15.1.0 Build 185,
+　　Copyright (C) 2015 Altera Corporation)
+　・以下ライセンスファイルについては"DE1SOC_OpenCL_v02.pdf"に従う
+　　Altera SDK for OpenCLのライセンスがあれば、Quartus Primeのライセンスは不要
+　　島崎さん提供の1-DIF159_License.datをC:\License.datへコピー
+　　(1-DIF159_License.datは借用LANアダプタのMACアドレス固定のライセンスファイル)
+　　環境変数LM_LICENSE_FILEをC:License.datに設定
+　・以下ボードパッケージについては"DE1SOC_OpenCL_v02.pdf"に従う
+　　\\hul2301\project\C70_SINJI\90_その他\30_勉強\10_OpenCL\DE1-SOC\BSP_OpenCL
+　　を%ALTERAOCLSDKROOT%\board\terasic\de1socという名前でコピー
+　　環境変数AOCL_BOARD_PACKAGE_ROOTにコピー先を設定
+　　(aocコンパイラはこの環境変数で使用するCPU、ボードを判定するのだろう)
+　　確認aocl --list-boards
+　　　Board list:
+　　　  de1soc_sharedonly
+　　
+Altera SoC EDS(armクロスコンパイラ)を"DE1SOC_OpenCL_v02.pdf"に従いインストール
+　・セットアップツールSoCEDSSetup-15.1.0.185-windows.exeでインストール6GB
+　・FTDIドライバインストール、DS-5インストール(ARM DS-5 v5.22.0)5GB
+
+"DE1SOC_OpenCL_v02.pdf"のCompile & Execute OpenCL Projectに従い初期動作確認
+　・コマンドプロンプトでterasicのサンプルをコンパイル(ライセンスの確認も兼ねる)
+　　cd %ALTERAOCLSDKROOT%\terasic\de1soc
+　　aoc device/boardtest.cl --sw-dimm-partition -o bin/boardtest.aocx
+　　1h程度で終了
+　・Hostプログラムのコンパイル確認
+　　D:\altera\15.1\embedded\Embedded_Command_Shell.batから専用bash起動
+　　　>cd d:altera/15.1/hld/board/terasic/de1soc/examples/boardtest
+　　　>make
+　　　arm-linux-gnueabihf-g++ -fPIC  host/src/main.cpp  host/src/memspeed.cpp
+  　　host/src/reorder.cpp  host/src/reorder_ocl.cpp  host/src/hostspeed.cpp
+  　　host/src/hostspeed_ocl.cpp  host/src/aclutil.cpp  host/src/timer.cpp
+  　　host/src/rwtest.cpp -o boardtest_host -DLINUX
+  　　-ID:/altera/15.1/hld/host/include
+  　　-LD:\altera\15.1\hld\board\terasic\de1soc\arm32\lib
+  　　-LD:/altera/15.1/hld/host/arm32/lib -Wl,--no-as-needed -lalteracl
+  　　-lalterahalmmd -lalterammdpcie -lelf -lrt -ldl -lstdc++
+　　カレントにbloadtest_hostが出来上がる
+　　もちろんARM用のバイナリなので動かない、試しに、
+　　　>./testboard_host
+　　　bash: ./boardtest_host: cannot execute binary file: Exec format error
+　　boardtest_hostとbin/boardtest.aocxをWinSCPでDE1に転送
+　　DE1上のlinuxでchmod +x boardtest_hostして起動。正常動作を確認
+　・ARM DS-5環境立上げ
+　　"DE1-SoC_Getting Start Guide.pdf"に従いライセンスのアクティベート
+　　Start MenuからEclipse for DS-5を起動、helpメニューからライセンス追加
+　　アクティベートコードに、AC+70616421313531、を記入
+　　ノードロック用のMACアドレスをPC搭載のネットワークアダプタとする
+　　"ARM 開発者(シルバー)..."でARMアカウントを作成する
+　　Eclipseがネットワーク接続を拒否するエラー"API呼び出し/api/v1/connect.."
+　　を吐くので、Eclipseのネットワーク設定メニューでプロキシを手動追加し、
+　　"DS-5 Altera Evaluation Edition.lic"が取得された、30日試用版
+

@@ -1,0 +1,688 @@
+[■link.txtを作る]
+
+cmakeはautoconf系の新ツールな位置づけ
+autoconfを書くのは難しいのと同じでcmakeを書くのは難しい
+cmakeで自前のCをコンパイルするのは諦め、難しすぎる
+
+結果、自前のCとOpenCVライブラリをリンクするのは、makeが良い
+ところがOpenCVのライブラリをリンクするには、フツーにMakefile書いても、やたらとUndefined
+functionが発生する
+コンパイラへの指示がこれまた難しい
+
+http://www.wakayama-u.ac.jp/~chen/cmake/cmakecv.html
+ここに簡単なOpenCVのfind_package方法が書かれている
+CMakeLists.txtを、
+
+cmake_minimum_required(VERSION 2.8)
+project(dspimg)
+set(CMAKE_C_COMPILER     /home.....arm-linux-gnueabihf-gcc)
+set(CMAKE_CXX_COMPILER /home.....arm-linux-gnueabihf-g++)
+set(CMAKE_LINKER             /home.....arm-linux-gnueabihf-ld)
+set(ENV{OpenCV_DIR} /home/kenji/libs/opencv-3.2_arm/release/installed)
+find_package(OpenCV REQUIRED)
+add_executable(dspimg dspimg.cc)
+target_link_libraries(dspimg ${OpenCV_LIBS})
+
+OpenCVのpackageを探すことができないといわれるので環境変数を足す
+arm用のバイナリを作る目的で使うコンパイラ系を指示する
+これで
+# cmake .
+# make
+libstdc++.so　not recognized ...
+x86用のlibが読まれて、認識できまへん、といわれる
+他のOpenCV系ライブラリは読めているらしい
+
+で、肝心のlink.txtってファイルが、CMakeFile/dspimg.dir/link.txtになる
+中身はリンクするコマンドそのもの
+
+/home/kenji/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-g++
+CMakeFiles/dspimg.dir/dspimg.cc.o  -o dspimg
+-L/usr/lib/gcc/x86_64-linux-gnu/4.8  -L/usr/lib/x86_64-linux-gnu -L/lib/x86_64-linux-gnu -rdynamic /home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_calib3d.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_core.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_features2d.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_flann.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_highgui.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_imgcodecs.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_imgproc.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_ml.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_objdetect.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_photo.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_shape.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_stitching.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_superres.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_video.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_videoio.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_videostab.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_aruco.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_bgsegm.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_bioinspired.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_ccalib.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_datasets.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_dnn.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_dpm.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_face.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_fuzzy.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_line_descriptor.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_optflow.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_phase_unwrapping.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_plot.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_reg.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_rgbd.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_saliency.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_stereo.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_structured_light.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_surface_matching.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_text.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_tracking.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_xfeatures2d.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_ximgproc.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_xobjdetect.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_xphoto.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_shape.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_photo.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_calib3d.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_phase_unwrapping.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_video.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_datasets.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_dnn.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/liblibprotobuf.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_plot.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_text.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_features2d.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_flann.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_highgui.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_ml.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_videoio.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_imgcodecs.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/liblibwebp.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/liblibtiff.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/liblibjasper.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/libIlmImf.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_objdetect.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_imgproc.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_core.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/libzlib.a 
+-lstdc++ -ldl -lm -lpthread -lrt
+
+これを使って新たな自前Cコンパイル用のMakefileを作るのが正しい
+
+[■複数の静的ライブラリを1つにまとめる]
+OpenCVのライブラリ間には少し依存関係があるので、リンクする順序に決まりがあるみたい
+で、やってみる
+
+cmakeが生成するx86用のlink.txtを調べてみると、
+
+/usr/bin/c++
+CMakeFiles/dspimg.dir/dspimg.cc.o
+-o dspimg
+-rdynamic
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_calib3d.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_core.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_features2d.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_flann.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_highgui.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_imgcodecs.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_imgproc.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_ml.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_objdetect.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_photo.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_shape.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_stitching.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_superres.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_video.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_videoio.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_videostab.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_aruco.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_bgsegm.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_bioinspired.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_ccalib.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_datasets.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_dnn.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_dpm.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_face.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_freetype.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_fuzzy.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_line_descriptor.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_optflow.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_phase_unwrapping.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_plot.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_reg.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_rgbd.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_saliency.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_sfm.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_stereo.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_structured_light.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_surface_matching.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_text.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_tracking.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_xfeatures2d.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_ximgproc.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_xobjdetect.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_xphoto.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_photo.a
+-lharfbuzz
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_shape.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/libcorrespondence.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/libmultiview.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/libnumeric.a
+-lglog
+-lgflags
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_calib3d.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_phase_unwrapping.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_video.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_datasets.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_dnn.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/liblibprotobuf.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_plot.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_text.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_features2d.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_flann.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_highgui.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_ml.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_videoio.a
+-lgtk-x11-2.0
+-lgdk-x11-2.0
+-latk-1.0
+-lgio-2.0
+-lpangoft2-1.0
+-lpangocairo-1.0
+-lgdk_pixbuf-2.0
+-lcairo
+-lpango-1.0
+-lfontconfig
+-lgobject-2.0
+-lglib-2.0
+-lgthread-2.0
+-lglib-2.0
+-lgthread-2.0
+-lfreetype
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_imgcodecs.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/liblibjpeg.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/liblibwebp.a
+-lpng
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/liblibtiff.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/liblibjasper.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/libIlmImf.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_objdetect.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_imgproc.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_core.a
+-lz
+-lstdc++
+-ldl
+-lm
+-lpthread
+-lrt
+
+libopencv_core.aが3回現れてて、びっくり;-0
+libopencv_imgproc.a、libopencv_objdetectも3回
+libopencv_imgcodecs.aは2回
+複数回定義されているモノは最後の一回を残して消してしまってもリンクは通るみたい
+
+*.aの塊りの途中途中に-lpngなんかが入っているけど、これらは全部、順序を保って最後に動かしてもリンクは通るみたい、
+
+で、*.aの重複を消して、-l*を下へ動かす整理をしてみた↓
+
+/usr/bin/c++
+CMakeFiles/dspimg.dir/dspimg.cc.o
+-o dspimg
+-rdynamic
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_stitching.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_superres.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_videostab.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_aruco.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_bgsegm.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_bioinspired.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_ccalib.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_dpm.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_face.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_freetype.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_fuzzy.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_line_descriptor.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_optflow.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_reg.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_rgbd.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_saliency.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_sfm.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_stereo.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_structured_light.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_surface_matching.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_tracking.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_xfeatures2d.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_xobjdetect.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_xphoto.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_photo.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_shape.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/libcorrespondence.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/libmultiview.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/libnumeric.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_calib3d.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_phase_unwrapping.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_video.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_datasets.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_dnn.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/liblibprotobuf.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_plot.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_text.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_features2d.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_flann.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_highgui.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_ml.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_videoio.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_imgcodecs.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/liblibjpeg.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/liblibwebp.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/liblibtiff.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/liblibjasper.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/libIlmImf.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_objdetect.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_imgproc.a
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_core.a
+-lharfbuzz
+-lglog
+-lgflags
+-lgtk-x11-2.0
+-lgdk-x11-2.0
+-latk-1.0
+-lgio-2.0
+-lpangoft2-1.0
+-lpangocairo-1.0
+-lgdk_pixbuf-2.0
+-lcairo
+-lpango-1.0
+-lfontconfig
+-lgobject-2.0
+-lglib-2.0
+-lgthread-2.0
+-lglib-2.0
+-lgthread-2.0
+-lfreetype
+-lpng
+-lz
+-lstdc++
+-ldl
+-lm
+-lpthread
+-lrt
+
+この*.aの順序でリンクすれば通る
+
+では、たくさんの*.aを一つにまとめるとする
+http://d.hatena.ne.jp/pyopyopyo/20151110/p1
+↑複数の静的ライブラリを一つにまとめる方法だって
+要はarコマンドで再構成する方法で、makeを通と下記みたいなMakefileになるから
+
+# cat Makefile
+ORG=\
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_stitching.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_superres.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_videostab.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_aruco.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_bgsegm.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_bioinspired.a\
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_ccalib.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_dpm.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_face.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_freetype.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_fuzzy.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_line_descriptor.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_optflow.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_reg.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_rgbd.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_saliency.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_sfm.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_stereo.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_structured_light.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_surface_matching.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_tracking.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_xfeatures2d.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_xobjdetect.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_xphoto.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_photo.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_shape.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib
+/libcorrespondence.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/libmultiview.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/libnumeric.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_calib3d.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_phase_unwrapping.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_video.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_datasets.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_dnn.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/liblibprotobuf.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_plot.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_text.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_features2d.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_flann.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_highgui.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_ml.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_videoio.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_imgcodecs.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/liblibjpeg.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/liblibwebp.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/liblibtiff.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/liblibjasper.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/share/OpenCV/3rdparty/lib/libIlmImf.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_objdetect.a \
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_imgproc.a \ 
+/home/kenji/libs/opencv-3.2_x86/release/installed/lib/libopencv_core.a \
+
+cv86.a:$(ORG)
+     $(RM) $@
+     $(AR) cqT $@ $^
+     \echo "create $@" > xxx
+     \echo "addlib $@ $^">> xxx
+     \echo "save"     >> xxx
+     \echo "end"      >> xxx
+     \echo ""         >> xxx
+     ar -M xxx
+
+# make
+これでcv86.aが出来上がるので、リンクするshellスクリプトも短くなった:-)
+
+# cat link.txt
+/usr/bin/c++ \
+CMakeFiles/dspimg.dir/dspimg.cc.o \
+ -o dspimg \
+ -rdynamic \
+ cv86.a \
+ -lharfbuzz \
+ -lglog \
+ -lgflags \
+ -lgtk-x11-2.0 \
+ -lgdk-x11-2.0 \
+ -latk-1.0 \
+ -lgio-2.0 \
+ -lpangoft2-1.0 \
+ -lpangocairo-1.0 \
+ -lgdk_pixbuf-2.0 \
+ -lcairo \
+ -lpango-1.0 \
+ -lfontconfig \
+ -lgobject-2.0 \
+ -lglib-2.0 \
+ -lgthread-2.0 \
+ -lglib-2.0 \
+ -lgthread-2.0 \
+ -lfreetype \
+ -lpng \
+ -lz \
+ -lstdc++ \
+ -ldl \
+ -lm \
+ -lpthread \
+ -lrt \
+
+# sh link.txt
+これでdspimgなる実行ファイルが出来上がる
+# dspimg hogee.png
+ほーぉ、いい感じ、x86だけどねぇー、arm版を作るのは大変だ
+
+[■arm用のMakefileを作る]
+cmakeで得られたlink.txtにCのコンパイルを加えたモノ↓
+
+# cat link.txt
+
+arm-linux-gnueabi-gcc -c -fPIC display_image.cpp -o display_image.o -I/home/kenji/libs/opencv-3.2_arm/release/installed/include/
+
+/usr/bin/arm-linux-gnueabi-g++
+display_image.o
+-o dspimg
+-rdynamic
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_calib3d.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_core.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_features2d.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_flann.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_highgui.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_imgcodecs.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_imgproc.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_ml.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_objdetect.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_photo.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_shape.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_stitching.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_superres.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_video.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_videoio.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_videostab.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_aruco.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_bgsegm.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_bioinspired.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_ccalib.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_datasets.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_dnn.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_dpm.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_face.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_fuzzy.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_line_descriptor.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_optflow.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_phase_unwrapping.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_plot.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_reg.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_rgbd.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_saliency.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_stereo.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_structured_light.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_surface_matching.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_text.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_tracking.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_xfeatures2d.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_ximgproc.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_xobjdetect.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_xphoto.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_shape.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_photo.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_calib3d.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_phase_unwrapping.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_video.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_datasets.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_dnn.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/liblibprotobuf.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_plot.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_text.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_features2d.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_flann.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_highgui.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_ml.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_videoio.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_imgcodecs.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/liblibwebp.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/liblibtiff.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/liblibjasper.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/libIlmImf.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_objdetect.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_imgproc.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_core.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/libzlib.a
+-lstdc++
+-ldl
+-lm
+-lpthread
+-lrt
+
+依存関係が壊れないように*.aを一つにまとめるMakefile↓
+# cat Makefile-ar
+ORG=
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_calib3d.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_core.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_features2d.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_flann.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_highgui.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_imgcodecs.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_imgproc.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_ml.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_objdetect.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_photo.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_shape.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_stitching.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_superres.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_video.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_videoio.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_videostab.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_aruco.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_bgsegm.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_bioinspired.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_ccalib.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_datasets.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_dnn.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_dpm.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_face.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_fuzzy.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_line_descriptor.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_optflow.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_phase_unwrapping.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_plot.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_reg.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_rgbd.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_saliency.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_stereo.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_structured_light.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_surface_matching.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_text.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_tracking.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_xfeatures2d.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_ximgproc.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_xobjdetect.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_xphoto.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_shape.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_photo.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_calib3d.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_phase_unwrapping.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_video.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_datasets.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_dnn.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/liblibprotobuf.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_plot.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_text.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_features2d.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_flann.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_highgui.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_ml.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_videoio.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_imgcodecs.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/liblibwebp.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/liblibtiff.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/liblibjasper.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/libIlmImf.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_objdetect.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_imgproc.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/lib/libopencv_core.a
+/home/kenji/libs/opencv-3.2_arm/release/installed/share/OpenCV/3rdparty/lib/libzlib.a
+
+cvarm.a:$(ORG)
+     $(RM) $@
+     $(AR) cqT $@ $^
+     \echo "create $@" > xxx
+     \echo "addlib $@ $^">> xxx
+     \echo "save"     >> xxx
+     \echo "end"      >> xxx
+     \echo ""         >> xxx
+     ar -M xxx
+
+# make -f Makefile-ar
+↑これで*.aがcvarm.aにまとまるので、
+
+cvarm.aと自前のCコードをリンクするMakefile
+# cat Makefile
+
+ARMBIN=/home/kenji/altera/15.1/embedded/ds-5/sw/gcc/bin/
+CC=arm-linux-gnueabi-gcc
+CX=arm-linux-gnueabi-g++
+LD=arm-linux-gnueabi-ld
+DL=-L/home/kenji/libs/opencv/samples/cpp/tutorial_code/introduction/display_image/cmake/usr/lib/arm-linux-gnueabihf
+-L/usr/arm-linux-gnueabihf/lib
+
+dspimg:display_image.o
+     $(CX) display_image.o -dynamic -rdynamic cvarm.a -o $@ -lstdc++ -ldl -lm -lpthread -lrt -lc
+
+display_image.o:display_image.cpp
+     $(CC) -c -shared -fPIC display_image.cpp -I/home/kenji/libs/opencv-3.2_arm/release/installed/include/
+-I/home/kenji/libs/opencv-3.2_arm/release/installed/include/opencv -o display_image.o
+
+.PHONY:clean
+clean:
+     rm -f display_image.o dspimg
+
+# make
+dspimgが出来上がる
+
+[■なぜかlibstdc++.soやらlibm.soやらはどこかの*.soとリンクされる]
+# readelf -d dspimg
+  0x00000001 (NEEDED)                     Shared library: [libstdc++.so.6]
+  0x00000001 (NEEDED)                     Shared library: [libpthread.so.0]
+  0x00000001 (NEEDED)                     Shared library: [librt.so.1]
+  0x00000001 (NEEDED)                     Shared library: [libm.so.6]
+  0x00000001 (NEEDED)                     Shared library: [libc.so.6]
+  0x00000001 (NEEDED)                     Shared library: [ld-linux.so.3]
+  0x00000001 (NEEDED)                     Shared library: [libgcc_s.so.1]
+
+# find /usr/ -name libstdc++.so
+/usr/lib/gcc-cross/arm-linux-gnueabi/4.7/libgstdc++.so
+
+この他のlibpthread.soやlibrt.soなどが存在するディレクトリについてUbuntuウェブサイトで調べると、
+
+libgcc-4.7-dev-armel-cross
+libc6-dev-armel-cross
+とかのパッケージに含まれたライブラリだった
+
+Ubuntuのクロス開発用パッケージは
+arm64
+armhf
+armel
+の3種類ありそうで、armelについて現在の我がマシーン上は、
+
+# aptitude search cross | grep armel
+v   glibc-2.19-1-armel-cross -
+v   libc-dbg-armel-cross -
+v   libc-dev-armel-cross -
+v   libc6-armel-armel-cross -
+p   libc6-armel-armhf-cross         - Dummy package to get libc6:armel installed
+i A libc6-armel-cross               - Embedded GNU C Library: Shared libraries (
+p   libc6-armhf-armel-cross         - Dummy package to get libc6:armhf installed
+p   libc6-dbg-armel-cross           - Embedded GNU C Library: detached debugging
+v   libc6-dev-armel-armel-cross -
+p   libc6-dev-armel-armhf-cross     - Dummy package to get libc6-dev:armel insta
+i A libc6-dev-armel-cross           - Embedded GNU C Library: Development Librar
+p   libc6-dev-armhf-armel-cross     - Dummy package to get libc6-dev:armhf insta
+i A libgcc-4.7-dev-armel-cross      - GCC support library (development files)
+i A libgcc1-armel-cross             - GCC support library
+p   libgcc1-dbg-armel-cross         - GCC support library (debug symbols)
+p   libgfortran-4.7-dev-armel-cross - Runtime library for GNU Fortran applicatio
+p   libgfortran3-armel-cross        - Runtime library for GNU Fortran applicatio
+p   libgfortran3-dbg-armel-cross    - Runtime library for GNU Fortran applicatio
+p   libgo0-armel-cross              - Runtime library for GNU Go applications
+p   libgo0-dbg-armel-cross          - Runtime library for GNU Go applications (d
+i A libgomp1-armel-cross            - GCC OpenMP (GOMP) support library
+p   libgomp1-dbg-armel-cross        - GCC OpenMP (GOMP) support library (debug s
+p   libhfgcc-4.7-dev-armel-cross    - GCC support library (hard float ABI develo
+p   libhfgcc1-armel-cross           - GCC support library (hard float ABI)
+p   libhfgcc1-dbg-armel-cross       - GCC support library (debug symbols)
+p   libhfgfortran-4.7-dev-armel-cro - Runtime library for GNU Fortran applicatio
+p   libhfgfortran3-armel-cross      - Runtime library for GNU Fortran applicatio
+p   libhfgfortran3-dbg-armel-cross  - Runtime library for GNU Fortran applicatio
+p   libhfgomp1-armel-cross          - GCC OpenMP (GOMP) support library (hard fl
+p   libhfgomp1-dbg-armel-cross      - GCC OpenMP (GOMP) support library (hard fl
+p   libhfmudflap0-armel-cross       - GCC mudflap shared support libraries (hard
+p   libhfmudflap0-dbg-armel-cross   - GCC mudflap shared support libraries (hard
+p   libhfobjc-4.7-dev-armel-cross   - Runtime library for GNU Objective-C applic
+p   libhfobjc4-armel-cross          - Runtime library for GNU Objective-C applic
+p   libhfobjc4-dbg-armel-cross      - Runtime library for GNU Objective-C applic
+p   libhfstdc++6-4.7-dbg-armel-cros - GNU Standard C++ Library v3 (debugging fil
+p   libhfstdc++6-4.7-dev-armel-cros - GNU Standard C++ Library v3 (development f
+p   libhfstdc++6-armel-cross        - GNU Standard C++ Library v3 (hard float AB
+p   libmudflap0-4.7-dev-armel-cross - GCC mudflap support libraries (development
+p   libmudflap0-armel-cross         - GCC mudflap shared support libraries
+p   libmudflap0-dbg-armel-cross     - GCC mudflap shared support libraries (debu
+p   libobjc-4.7-dev-armel-cross     - Runtime library for GNU Objective-C applic
+p   libobjc4-armel-cross            - Runtime library for GNU Objective-C applic
+p   libobjc4-dbg-armel-cross        - Runtime library for GNU Objective-C applic
+v   libstdc++-dev-armel-cross -
+p   libstdc++6-4.7-dbg-armel-cross  - GNU Standard C++ Library v3 (debugging fil
+i A libstdc++6-4.7-dev-armel-cross  - GNU Standard C++ Library v3 (development f
+p   libstdc++6-4.7-pic-armel-cross  - GNU Standard C++ Library v3 (shared librar
+i A libstdc++6-armel-cross          - GNU Standard C++ Library v3
+v   linux-kernel-headers-armel-cros -
+i A linux-libc-dev-armel-cross      - Linux Kernel Headers for development (for
+
+↑てな感じ
+これらのライブラリパッケージをapt-getするとライブラリのサーチパスに追加されるのだろうが仕掛けは知らない
+この仕掛けについては"各コンパイラに設定してある標準検索パス"参照

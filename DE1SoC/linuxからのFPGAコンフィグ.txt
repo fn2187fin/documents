@@ -1,0 +1,25 @@
+https://rocketboards.org/foswiki/view/Documentation/GSRD131ProgrammingFPGA
+↑詳細はFPGA Configuration from Linux のセクションにあり
+
+MSEL=00000
+を確認のこと。DE1SOCは01010も10101も書き換えがTimeOut、Invalid MSELとなりNG
+
+①デバイスファイルでFPGAのブリッジを一旦停止
+②ddコマンドで.rbfフォーマットで/dev/fpga0に書き込み
+③デバイスファイルでFPGAのブリッジを起動
+としている。alteraの解説なので確実な方法。
+
+$ echo 0 > /sys/class/fpga-bridge/fpga2hps/enable
+$ echo 0 > /sys/class/fpga-bridge/hps2fpga/enable
+$ echo 0 > /sys/class/fpga-bridge/lwhps2fpga/enable 
+
+$ dd if=soc_system.rbf of=/dev/fpga0 bs=1M 
+
+$ echo 1 > /sys/class/fpga-bridge/fpga2hps/enable
+$ echo 1 > /sys/class/fpga-bridge/hps2fpga/enable
+$ echo 1 > /sys/class/fpga-bridge/lwhps2fpga/enable 	
+
+$ cat /sys/class/fpga/fpga0/status
+user mode
+
+以上でFPGAのコンフィグレーションは完了する

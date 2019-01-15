@@ -1,0 +1,55 @@
+[■ARMでdarknetが動くか]
+PC版では簡単に動くDarknetは全部C言語だし移植も容易かと、、、
+
+・ソースをダウンロード↓
+https://pjreddie.com/darknet/install/
+# git clone https://github.com/pjreddie/darknet.git
+
+# cd darknet
+# make
+完成
+
+テスト
+# ./darknet
+usage: ./darknet <function>
+OK!らしい
+
+OpenCVと一緒にコンパイルするにはMakefileを修正
+# OPENCV=1
+# make clean && make
+テストだぁ～
+# ./darknet imtest data/eagle.jpg
+Not compiled with OpenCV, saving to C1.png instead
+Not compiled with OpenCV, saving to C2.png instead
+...
+あれれっと;-<
+C1.pngなんかは正しく生成できているな
+まあどうせARMじゃぁGtkウィンドウ張れないから無視して
+
+[■ARM版darknetのコンパイル]
+Makefileを
+CC, ARなんかをarm-linux-gnueabihf-gccとar
+OPTS=-O3
+とかに修正
+
+# make
+通りました
+
+依存しているライブラリはっと
+# readelf -d darknet
+ libm.so.6
+ libpthread.so.0
+ libc.so.6
+の3つだけ、標準的ライブラリなのでDE0には全部すでに乗っていると思う
+
+で、DE0へdarknetとdata/eagle.jpgを転送して起動
+# ./darknet imtest eagle.jpg
+ちと遅いが、、、C1.pngとかが生成されました
+
+Windowsへpngを転送して確認！OK :-)
+ほぉぉ～簡単にDarknetが移植できました
+
+[■ARM版darknet上でyolo1は動くのか]
+darknetが動けば、yolo.cfgなんかはただのデータだから、
+推定は動くんじゃぁないかと
+※YOLOはYOLO2とかできてるんだね、従来のモノはYOLO1と書かれている

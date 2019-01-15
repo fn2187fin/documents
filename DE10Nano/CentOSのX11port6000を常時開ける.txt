@@ -1,0 +1,52 @@
+CentOS X11 port 6000を開ける方法
+
+CentOSのセキュリティは強いデフォルトになっていて、ほとんどのTCPの穴はふさがっている
+
+なので、簡単なX11クライアントを書いて、DE10-Nanoでコンパイルして実行し、CentOS(192.168.1.20)に貼り付けると
+
+$ export DISPLAY=192.168.1.20:0
+$ hello-x
+Cannot Open Display
+
+となる;-)
+ちなみに、export DISPLAY=192.168.1.20:0. でもCannot Open DisplayになるのでDISPLAY変数に注意！
+Xサーバ側でxhost+していないと、No protocol specified になる
+
+X11の貼り付けはデフォルトNGなので、DE10-NanoからX11を貼りつけるために、セキュリティをコジ開ける必要がある
+
+https://qiita.com/kkk627/items/0a4ad6c2ccd1548474ba
+↑ここに従い、CentOSでの作業になる
+
+(1) gdm(GNOME Display Manager)の設定を変える
+
+vi /etc/gdm/custom.conf
+
+[security]
+↓
+[security]
+DisallowTCP=false
+
+(2) ファイアウォールの設定を変えてポートを開ける
+
+$ sudo firewall-cmd --add-port=6000/tcp --permanent
+$ sudo firewall-cmd --reload
+
+ここで再起動して、/etc/gdm/custom.confを有効にする
+
+(3)X11のアクセスコントロールを開ける
+
+xhost +
+
+■動作確認
+xeyesで試す
+$ export DISPLAY=localhost:0
+$ xeyes
+OK
+
+あとは、
+$ netstat -anp | grep 6000
+tcp        0      0 0.0.0.0:6000            0.0.0.0:*               LISTEN      -                   
+tcp6       0      0 :::6000                 :::*                    LISTEN      - 
+
+で見ても開いたらしい
+

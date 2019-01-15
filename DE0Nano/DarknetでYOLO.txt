@@ -1,0 +1,84 @@
+[■ARM版DarknetでYOLOが動くか]
+
+[■x86版でYOLO]
+yoloのウェイトをダウンロード↓
+# wget https://pjreddie.com/media/files/yolo.weights
+286MBもあるのね
+
+[■ARM版でYOLO]
+
+# ./darknet detect cfg/yolo.cfg yolo.weights data/dog.jpg
+Killed
+？？自分でKillするらしい、、、;-<
+メモリのパンクか？detector testコマンドなら動くみたい;-o)
+
+[■darknetな各種ANNのテスト]
+・Tiny darknet
+classifyコマンド
+小さいWeight 4MB
+速い
+Alexnetなみの認識率
+darknet classify cfg/tiny.cfg tiny.weights data/dog.jpg 0.3sem/Frame
+
+armでは動かない、mallocの回数が多すぎ
+cfg/imagenet1k.data（固定ファイル名）で指定される名前リストはdata
+/imagenet.shortnames.listで21,842あり
+data/imagenet.shortname.listを処理用のmallocの呼び出し回数を減らす
+①fgetlのmallocを1回にしてgdbで落ちる場所を探し、free()を呼ばない修正
+②fgetsでEOF処理でのfree()を呼ばない
+freeを呼ばない場合と呼ぶ場合で、メモリ使用量を比較するがほとんど変わら
+ず、800MB程度を使用する
+800MBはARMではギリギリ動くか？
+
+・YOLO tiny-yolo-voc
+detector testコマンド
+YOLOとしては小さい
+遅め
+領域の認識ができる
+darknet detector test cfg/voc.data cfg/tiny-yolo-voc.cfg tiny-yolo-voc.weights data/dog.jpg 
+
+cfg/voc.dataで指定される名前リストはcfg/voc.namesで20行しかないのでARMの
+mallocは通る
+
+・動画からの認識
+detector demoコマンド
+OpenCVのカメラIFを使うのでOPENCV=1 makeでビルドが必要
+darknet detector demo cfg/coco.data cfg/yolo.cfg yolo.weights
+遅くて、画像が一旦暗くなる
+0.1FPSと出る、10sec/Frame
+
+[■arm版darknet-nnpack試しNG]
+NNPACKつーアクセラレータパッケージがdarknet bindingsなので試すが、NG
+https://github.com/Maratyszcza/NNPACK
+↑のdarknet bindingsが↓
+https://github.com/thomaspark-pkj/darknet-nnpack
+
+confuとかninjaとかclangとか必要なのでapt-getして、
+# configure.py --backend auto --target arm-linux
+Unspoort arm-linux-gnueabihf PLATFORM
+;-<
+
+NEON最適化だけでもとMakefileを弄ってビルドしたが
+# darknet detector test cfg/voc.data cfg/tiny-yolo-voc.cfg tiny-yolo-voc.weights data/dog.jpg
+42secが43secとかえって遅くなった;-<
+なんだこれ、サポートしない理由は遅くなるからか？
+
+[■x86版darknet-nnpack試し]
+NNPACK-darknetをダウンロードして試す
+https://github.com/thomaspark-pkj/darknet-nnpack
+
+confu,peachpy,ninjaとかが必要 PeachPyってアセンブラみたいね
+confu setup
+./configure.py --backend auto
+ninja
+ここで作ったヘッダとライブラリをdarknet-nnpackにコピーしてビルドした
+# cp ../darknet-nnpack/include/*.h include/
+# cp ../darknet-nnpack/lib/* lib/
+# cp ../darnket-nnpack/deps/pthreadpool/include/*.h include/
+# make
+
+YOLO起動！
+# darknet detector test cfg/voc.data cfg/tiny-yolo-voc.cfg tiny-yolo-voc.weights data/dog.jpg
+ううぅ～　14.1secが、、、なんと92msec、、、100倍以上高速化;-)
+と思ったが、メッセージにはdetectorの答えが書かれない、、、ホントに推定処理してるのか？
+怪しいなぁ～:-)

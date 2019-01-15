@@ -1,0 +1,29 @@
+fswebcamをDE10Nanoで試す
+
+USBカメラを接続しての写真撮影
+fswebcamは動画は撮れない
+
+■２つのダウンロード
+なんとかして２つをDE10Nanoへ持ってくる、今回はgit cloneとWinSCPで
+git clone https://github.com/fsphil/fswebcam
+libgd-2.2.5.tar.gz
+
+■make
+$ cd libgd
+$ ./configure
+$ make
+$ sudo make install
+これで、/usr/local/libにインストールされた
+
+$ cd fswebcam
+$ vi configure // GDライブラリが読めないのでチェックをスキップした
+$ ./configure
+$ gcc -o fswebcam fswebcam.o log.o effects.o parse.o src.o src_test.o \
+ src_raw.o src_file.o src_v4l1.o src_v4l2.o dec_rgb.o dec_yuv.o \
+ dec_grey.o dec_bayer.o dec_jpeg.o dec_png.o dec_s561.o -lgd -L/usr/local/lib
+./fswebcamがビルドされた
+
+■テスト
+$ ./fswebcam abc.jpg
+
+abc.jpgができた、写ってる:-)

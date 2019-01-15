@@ -1,0 +1,60 @@
+【★PC⇔MPSoC稼働環境】
+①OS
+PC : CentOS 6.8
+MPSoC : 64bit petalinux(yoct linux)
+
+②通信
+GbE接続
+MPSoC : 192.168.1.100 (ボード固定した)
+PC    : 192.168.1.20  (ネットワークアドレスが一緒なら何でも良い)
+ポート: 8888 (何でも良いが)
+
+③ソフト
+PC : img2mpsoc.py
+MPSoC : mpcnn
+
+【★PC側とMPSoC側での画像次元】
+PC⇔MPSoCで受け渡される画像の次元構造を合わせる必要があるので調査
+
+まず、OpenCV出力は、以下の次元を持つ仕様
+① cv2.imread：y, x, ch
+
+これをtranspose(2,0,1)で送信するとget_bitmapと一致したから、get_bitmap出力は、
+② get_bitmap：ch, y, x
+
+(つまりCaffeなどの画像次元構造と同じ)であるから、
+demo_after(before)_contraction_cognition_matrixで扱う画像次元も、
+③ ch, y, x
+
+※因みにtranspose(2,1,0)で送信するとget_bitmapの結果とは不一致になる確認済
+よって送受信には(ch,y,x)の次元を使うことにする
+
+【★mpcnn】
+①中研提供のmain.cを修正
+・WITHOUT_MAINの#ifndefを追加してmain関数を消し、サーバプログラムとリンクする
+・demo_after_contraction_classify_matrix()関数について、
+(1)cnv1,2,3,4とfc5,6領域をstatic化
+(2)処理内容をPRC_INIT,PROC_RECOG,PROC_FREEに分けて、それぞれ独立に呼出可とする
+　PROC_INIT  : 重みを読込み、マイナス値を返す
+　PROC_RECOG : 重みを使用した認識(複数回呼出される)、0-4の回答番号answerを返す
+　PROC_FREE  : 重み領域の解放、マイナス値を返す
+
+②超Lのサーバプログラムとリンク
+　tcp初期化
+　PROC_INIT
+　while(1)
+　　accept()
+　　画像データを受信 →img
+　　画像認識(img)    →answer
+　　(answer+1)を返信 →クライアント(img2mpsoc.py)
+
+③画像送受信、認識、結果送受信の確認　OK
+
+【★時間/SubFrame】OSはLinux、GCC-4.4.7
+      Opt   normal reduced
+Intel -O3     2.51    0.37
+Intel        10.90    1.57
+MPSoC -O3    31.05    4.44
+MPSoC       133.03   17.95
+FPGA         yy.yy   zz.zz
+

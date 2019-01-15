@@ -1,0 +1,496 @@
+darknetをDE10-Nanoで動かす
+■総合まとめ
+DE10-Nano Console-Linux-BSP-OpenCL上でdarknet_tttを起動して実行時間を測定
+
+！！最も重要
+darknetで予測を起動すると、1回目は遅い！、ので、複数の画像を入力として最後の画像の予測時間を測定すること
+(FPGAの動作にCPUキャッシュが関係しているらしく、BLASでの動作と傾向が同じであった)
+複数画像入力での実行時間の計測は、"elapsed_time.xlsx"が正しく、BLASを使用した0.352sec/imageが最終結果である
+
+■傾向のまとめ
+以下は、ttt5_224_160.cfgの1回目(1画像)の実行時間なので、不正確であるり、速度の傾向を見る程度に使うこと
+ARM動作  ：1.637sec -Ofast最適化 GEMMアルゴはnaiveで最適化ライブラリ不使用
+ARM動作  ：0.462sec -Ofast最適化 GEMMアルゴはOpenBLASライブラリ使用 im2col使用
+ARM動作  ：0.355sec -Ofast最適化 GEMMアルゴはOpenBLASライブラリ使用 im2row使用
+FPGA動作 ：1.205sec half3x3/half16 A行列をバッファリング OpenCL記述
+
+※オブジェクトのコンパイルはi386-PC上のarm-linux-gnueabihf-gcc、セルフコンパイラではない
+※im2colでの積和演算
+ARM動作  ：4.250sec -Ofast最適化
+
+ARM動作なim2row+SGEMMが一番速い;-)
+終了
+
+■Self-buildとcross-build
+WinSCPでdarknet_sdlをディレクトリごとコピー
+$ make
+$ ./darknet 
+OK
+CPU実行速度
+
+★yolov2-tiny-voc
+darknet detect cfg/yolov2-tiny-voc.cfg yolov2-tiny-voc.weights data/dog.jpg
+self-build:  arm-angstrom-linux-gnueabi-gcc: 54sec
+cross-build: arm-linux-gnueabihf-gcc       : 43sec
+
+★ttt5_288_352
+darknet detect ttt5_288_352.cfg ttt5_288_352_final.weights data/dog.jpg
+cross-build: arm-linux-gnueabihf-gcc       :  9sec
+
+★ttt5
+darknet detect ttt5.cfg ttt5_ftune.weights data/dog.jpg
+cross-build: arm-linux-gnueabihf-gcc       :  4.7sec
+
+★ttt5_224_160
+cross-build: arm-linux-gnueabihf-gcc       :  1.637sec
+
+以上-Ofastオプション済み
+
+以下gemm_fpga.c利用(ARM+FPGA)
+
+■make方法
+
+■精度のまとめ
+症状
+・初段のConvolutionで誤差大、2段目以降は誤差小で、推定を誤る ⇒vloadnのオフセット設定のバグでした
+・FP16で誤差問題大　　　　　　　　　　　　　　　　　　　　　 ⇒vloadnのオフセット設定のバグでした
+　⇒期待値不一致、推定を誤る
+・floatで、初段のvload3x3+1Bアクセスは誤差大                 ⇒vloadnのオフセット設定のバグでした
+　←初段をcolumn-majorかつnaiveな演算に変更すると、誤差小で期待値一致し推定OK
+・column-majorかつpragma unroll 9と32で推定を試す⇒fittingできず
+・column-majorかつpragma unroll 9と16で推定を試す⇒fittingできた
+・累積誤差か桁落ちか、どちらかが発生している                 ⇒vloadnのオフセット設定のバグでした
+・sum9でfloat3x3の総和を取った時点で桁落ちしているのか？     ⇒vloadnのオフセット設定のバグでした
+
+vloadnのオフセット設定バグ修正後:-)
+
+★ttt5_224_160 (halfx20_floatx3x3) 初段はfloatなnaiveで、以降はhalf16x2
+cross-build: arm-linux-gnueabihf-gcc+aoc  :  1.99sec
+naiveな初段と2段目で1.27sec
+
+★ttt5_224_160 (halfx20_floatx3x3) 初段はfloat3x3で、以降はhalf16x2      fittingエラー
+cross-build: arm-linux-gnueabihf-gcc+aoc  :  0.00sec
+
+★ttt5_224_160 (halfxf_halfx3x3)   初段はfloat3x3で、以降はhalf16
+cross-build: arm-linux-gnueabihf-gcc+aoc  :  1.27sec
+
+★ttt5_224_160 (halfxf_floatx3x3)  初段はhalf3x3で、以降はhalf16
+cross-build: arm-linux-gnueabihf-gcc+aoc  :  1.21sec
+
+private変数でA行列の読み直しをバッファリングしてみた
+
+★ttt5_224_160 (halfxf_floatx3x3K)  初段のA行列をprivate変数でバッファリング
+cross-build: arm-linux-gnueabihf-gcc+aoc  :  1.23sec
+改善されない！
+                              
+★ttt5_224_160 (halfxfK_floatx3x3K) すべてのA行列をprivate変数でバッファリング
+cross-build: arm-linux-gnueabihf-gcc+aoc  :  1.20sec
+                              
+★ttt5_224_160 (halfxfK_floatx3x3)  初段を除くA行列をprivate変数でバッファリング
+cross-build: arm-linux-gnueabihf-gcc+aoc  :  1.18sec
+ARM+FPGAでは最速？gemm1_halfxfK_halfx9.cl
+
+バッファリングでは劇的効果は望めない
+
+■速度改善方針のまとめ
+@ARMにて
+
+推定処理時間：gemm_nnと-g -pgを外し、gcc最適化すると0.473895sec(-Ofast)
+FPGAでのgemm_nnが521msec("転送性能から.txt"より)なので、1FPSが見えている
+
+・gemm_nn*W_*Wでvloadnを使う
+・normalize_cpuの削減 Fold BatchNorm  ⇒済みによりnormalize_cpu()簡略化
+・im2col_cpuのcolumn_major化　　　　　⇒済みによりro2col_major()廃止
+など必須(?)
+
+・大胆にim2colにmatrix乗算を追加、GEMM廃止
+im2col_cpu_mm() CPU処理↓おそい
+cross-build: arm-linux-gnueabihf-gcc      :  4.25sec
+ランダムアクセスの山になっているのだろう
+
+■vloadnやvload_halfnの解説がヘンテコりん
+　"アドレス( p + (offset * n ))からsizeof(gentypen)バイト読み込む"と仕様にはあるが、
+  実行して確かめると、メモリ空間をgentypenの配列アクセスのように扱えている
+　例えば、float16の配列を
+　　global float A[100]
+  において、
+    vload16(0,A);
+  では、n=16、sizeof(float16)==64Byteなので、(Aの位置＋0*16)から64B読み込み、
+　　vload16(1,A);
+  では、(Aの位置＋1*sizeof(float16))から64B読み込んでいる
+　マニュアル表現では(Aの位置＋1*16)から読むように見えるが、、わけわからん;-<
+
+▼ttt5_2224_160 FP16転送版をgprofで関数単位に見てみる↓
+・prediction time = 1.361secで、
+・FP16なGEMM(gemm_nn_fpga)＝22%(300msec)
+・FP16(f2h)とIlmBaseでの変換が7.41+7.16=15%(198msec;-P)
+・row2col_major変換が2.84%(39msec)
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls   s/call   s/call  name    
+ 14.07      1.14     1.14        1     1.14     2.23  stbi_zlib_compress
+  8.40      1.82     0.68  4201404     0.00     0.00  stbiw__zlib_countm
+  7.41      2.42     0.60  8101959     0.00     0.00  half::half(float)
+  7.16      3.00     0.58  8101959     0.00     0.00  f2h
+  6.30      3.51     0.51        1     0.51     2.93  stbi_write_png_to_mem
+  6.05      4.00     0.49  4365744     0.00     0.00  rand_normal
+  4.94      4.40     0.40        8     0.05     0.22  gemm_nn_fpga　
+  4.44      4.76     0.36        8     0.05     0.11  make_convolutional_layer
+  3.70      5.06     0.30      761     0.00     0.00  load_image_stb
+  3.58      5.35     0.29        8     0.04     0.04  load_convolutional_weights
+  2.84      5.58     0.23        8     0.03     0.03  row2col_major
+  1.98      5.74     0.16  2232573     0.00     0.00  stbiw__paeth
+  1.98      5.90     0.16        8     0.02     0.04  im2col_cpu
+  1.98      6.06     0.16  2737280     0.00     0.00  im2col_get_pixel
+  1.85      6.21     0.15   723134     0.00     0.00  stbiw__zlib_bitrev
+  1.73      6.35     0.14   778879     0.00     0.00  stbiw__zhash
+  1.48      6.47     0.12   999460     0.00     0.00  activate
+  1.48      6.59     0.12   953763     0.00     0.00  stbiw__zlib_flushf
+  1.36      6.70     0.11   998935     0.00     0.00  h2f
+  1.36      6.81     0.11        3     0.04     0.04  forward_maxpool_layer
+  1.23      6.91     0.10        1     0.10     3.03  save_image_png
+  1.11      7.00     0.09  1040481     0.00     0.00  get_pixel
+  1.11      7.09     0.09        1     0.09     0.20  resize_image
+  0.99      7.17     0.08       20     0.00     0.00  fill_cpu
+  0.99      7.25     0.08     1690     0.00     0.00  stbi__zbuild_huffman
+  0.86      7.32     0.07      576     0.00     0.00  stbi__YCbCr_to_RGB_row
+  0.86      7.39     0.07    13824     0.00     0.00  stbi__idct_block
+  0.74      7.45     0.06        8     0.01     0.01  add_bias
+  0.74      7.51     0.06        7     0.01     0.01  copy_cpu
+  0.62      7.56     0.05   998935     0.00     0.00  half::operator float() const
+  0.62      7.61     0.05   215822     0.00     0.00  stbi__zhuffman_decode
+  0.62      7.66     0.05      760     0.00     0.00  stbi__convert_format
+  0.49      7.70     0.04    13824     0.00     0.00  stbi__jpeg_decode_block
+  0.49      7.74     0.04       18     0.00     0.01  activate_array
+  0.43      7.78     0.04   218687     0.00     0.00  stbi__bitreverse16
+  0.37      7.81     0.03   998935     0.00     0.00  half::half()
+  0.37      7.84     0.03      760     0.00     0.00  stbi__parse_huffman_block
+  0.37      7.87     0.03        3     0.01     0.01  stbiw__crc32
+  0.25      7.89     0.02   994560     0.00     0.00  leaky_activate
+  0.25      7.91     0.02   572544     0.00     0.00  set_pixel
+  0.25      7.93     0.02    72838     0.00     0.00  stbi__grow_buffer_unsafe
+  0.25      7.95     0.02     1152     0.00     0.00  stbi__resample_row_v_2
+  0.25      7.97     0.02                             run_netdump
+  0.19      7.98     0.02   884736     0.00     0.00  stbi__clamp
+  0.12      7.99     0.01   101601     0.00     0.00  add_pixel
+  0.12      8.00     0.01    85552     0.00     0.00  stbi__fill_bits
+  0.12      8.01     0.01    71412     0.00     0.00  stbi__zreceive
+  0.12      8.02     0.01      760     0.00     0.00  stbi__create_png_image_raw
+  0.12      8.03     0.01      760     0.00     0.00  stbi__parse_png_file
+  0.12      8.04     0.01      170     0.00     0.00  stbi__compute_huffman_codes
+  0.12      8.05     0.01        1     0.01     0.02  embed_image
+  0.12      8.06     0.01                             get_image_layer
+  0.12      8.07     0.01                             get_pixel_extend
+  0.12      8.08     0.01                             gradient_array
+  0.12      8.09     0.01                             rand_int
+
+index % time    self  children    called     name
+-----------------------------------------------
+                0.00    1.77       8/8           forward_convolutional_layer_cpu [9]
+[11]    21.9    0.00    1.77       8         gemm [11]
+                0.00    1.77       8/8           gemm_cpu [12]
+-----------------------------------------------
+                0.00    1.77       8/8           gemm [11]
+[12]    21.9    0.00    1.77       8         gemm_cpu [12]
+                0.40    1.37       8/8           gemm_nn_fpga [13]
+-----------------------------------------------
+                0.40    1.37       8/8           gemm_cpu [12]
+[13]    21.9    0.40    1.37       8         gemm_nn_fpga [13]
+                0.58    0.60 8101959/8101959     f2h [14]
+                0.11    0.08  998935/998935      h2f [44]
+                0.00    0.00      80/89          checkErr [138]
+-----------------------------------------------
+                0.58    0.60 8101959/8101959     gemm_nn_fpga [13]
+[14]    14.6    0.58    0.60 8101959         f2h [14]
+                0.60    0.00 8101959/8101959     half::half(float) [23]
+-----------------------------------------------
+
+▼ttt5をgprofで関数単位に見てみる↓
+・GEMM：76%で処理時間を大きく占めている
+・normalize_cpuとforward_maxpool_layerは各1%未満で予想外に速い
+・im2col_cpu, im2col_get_pixel?
+・add_bias,scale_biasの合計で.6%
+・resize_imageも.3%
+・rand_normalはweightの初期値設定なのでムシ
+
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls   s/call   s/call  name    
+ 76.19     18.82    18.82        8     2.35     2.35  gemm_nn
+  3.28     19.63     0.81        1     0.81     1.86  stbi_zlib_compress
+  3.08     20.39     0.76  4201404     0.00     0.00  stbiw__zlib_countm
+  2.31     20.96     0.57        1     0.57     2.57  stbi_write_png_to_mem
+  2.23     21.51     0.55  4365744     0.00     0.00  rand_normal
+  1.46     21.87     0.36      761     0.00     0.00  load_image_stb
+  1.13     22.15     0.28        8     0.04     0.10  make_convolutional_layer
+  1.01     22.40     0.25        8     0.03     0.06  im2col_cpu
+  0.97     22.64     0.24  3832192     0.00     0.00  im2col_get_pixel
+  0.73     22.82     0.18        7     0.03     0.03  normalize_cpu
+  0.57     22.96     0.14        3     0.05     0.05  forward_maxpool_layer
+  0.45     23.07     0.11  2232573     0.00     0.00  stbiw__paeth
+  0.45     23.18     0.11   953763     0.00     0.00  stbiw__zlib_flushf
+  0.40     23.28     0.10  1399244     0.00     0.00  activate
+  0.36     23.37     0.09  1392384     0.00     0.00  leaky_activate
+  0.36     23.46     0.09  1110432     0.00     0.00  get_pixel
+  0.36     23.55     0.09   778879     0.00     0.00  stbiw__zhash
+  0.36     23.64     0.09       20     0.00     0.00  fill_cpu
+  0.36     23.73     0.09        1     0.09     0.20  resize_image
+  0.36     23.82     0.09        1     0.09     2.66  save_image_png
+  0.32     23.90     0.08   723134     0.00     0.00  stbiw__zlib_bitrev
+  0.32     23.98     0.08        8     0.01     0.01  add_bias
+  0.32     24.06     0.08        7     0.01     0.01  scale_bias
+  0.24     24.12     0.06     1690     0.00     0.00  stbi__zbuild_huffman
+  0.20     24.17     0.05    13824     0.00     0.00  stbi__idct_block
+  0.20     24.22     0.05      576     0.00     0.00  stbi__YCbCr_to_RGB_row
+  0.20     24.27     0.05        7     0.01     0.01  copy_cpu
+  0.16     24.31     0.04   266401     0.00     0.00  stbi__get8
+  0.16     24.35     0.04        8     0.01     2.36  gemm_cpu
+  0.12     24.38     0.03   612864     0.00     0.00  set_pixel
+  0.12     24.41     0.03     1152     0.00     0.00  stbi__resample_row_v_2
+  0.12     24.44     0.03      760     0.00     0.00  stbi__convert_format
+  0.12     24.47     0.03      760     0.00     0.00  stbi__parse_huffman_block
+  0.12     24.50     0.03       18     0.00     0.01  activate_array
+  0.12     24.53     0.03        3     0.01     0.01  stbiw__crc32
+
+▼ttt5からgemm_nnをスキップしてみると
+・im2col_get_pixel：4.8%, im2col_cpu：4.3%で          計10%と目立つ項
+・normalize_cpu：3.1%, forward_maxpool_layer：2.4%で  計5.5%
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls   s/call   s/call  name    
+ 16.90      0.97     0.97        1     0.97     1.86  stbi_zlib_compress
+ 10.10      1.55     0.58  4201404     0.00     0.00  stbiw__zlib_countm
+  8.36      2.03     0.48        1     0.48     2.52  stbi_write_png_to_mem
+  7.14      2.44     0.41  4365744     0.00     0.00  rand_normal
+  6.27      2.80     0.36      761     0.00     0.00  load_image_stb
+  4.88      3.08     0.28  3832192     0.00     0.00  im2col_get_pixel
+  4.36      3.33     0.25        8     0.03     0.07  im2col_cpu
+  4.36      3.58     0.25        8     0.03     0.08  make_convolutional_layer
+  3.14      3.76     0.18        7     0.03     0.03  normalize_cpu
+  2.79      3.92     0.16  2232573     0.00     0.00  stbiw__paeth
+  2.44      4.06     0.14        3     0.05     0.05  forward_maxpool_layer
+  1.92      4.17     0.11   953763     0.00     0.00  stbiw__zlib_flushf
+  1.92      4.28     0.11   778879     0.00     0.00  stbiw__zhash
+  1.57      4.37     0.09  1399244     0.00     0.00  activate
+  1.57      4.46     0.09  1110432     0.00     0.00  get_pixel
+  1.57      4.55     0.09   723134     0.00     0.00  stbiw__zlib_bitrev
+  1.57      4.64     0.09       20     0.00     0.00  fill_cpu
+  1.57      4.73     0.09        7     0.01     0.01  scale_bias
+  1.57      4.82     0.09        1     0.09     0.23  resize_image
+  1.57      4.91     0.09        1     0.09     2.61  save_image_png
+  1.39      4.99     0.08        8     0.01     0.01  gemm_cpu
+  1.22      5.06     0.07        8     0.01     0.01  add_bias
+  1.05      5.12     0.06   612864     0.00     0.00  set_pixel
+  1.05      5.18     0.06    13824     0.00     0.00  stbi__idct_block
+  0.87      5.23     0.05  1392384     0.00     0.00  leaky_activate
+  0.87      5.28     0.05     1152     0.00     0.00  stbi__resample_row_v_2
+  0.70      5.32     0.04     1690     0.00     0.00  stbi__zbuild_huffman
+  0.70      5.36     0.04      760     0.00     0.00  stbi__parse_huffman_block
+  0.70      5.40     0.04      576     0.00     0.00  stbi__YCbCr_to_RGB_row
+  0.70      5.44     0.04        7     0.01     0.01  copy_cpu
+  0.52      5.47     0.03   218687     0.00     0.00  stbi__bit_reverse
+  0.52      5.50     0.03    72838     0.00     0.00  stbi__grow_buffer_unsafe
+  0.52      5.53     0.03       18     0.00     0.01  activate_array
+  0.52      5.56     0.03        1     0.03     0.15  stbi__parse_entropy_coded_data
+  0.35      5.58     0.02   215822     0.00     0.00  stbi__zhuffman_decode
+  0.35      5.60     0.02    85552     0.00     0.00  stbi__fill_bits
+  0.35      5.62     0.02    55012     0.00     0.00  overlap
+  0.35      5.64     0.02    13824     0.00     0.00  stbi__jpeg_decode_block
+  0.35      5.66     0.02      760     0.00     0.00  stbi__convert_format
+  0.35      5.68     0.02        3     0.01     0.01  stbiw__crc32
+  0.17      5.69     0.01   185173     0.00     0.00  stbi__zget8
+  0.17      5.70     0.01   112224     0.00     0.00  add_pixel
+  0.17      5.71     0.01    50757     0.00     0.00  stbi__jpeg_huff_decode
+  0.17      5.72     0.01    47136     0.00     0.00  stbi__get16be
+  0.17      5.73     0.01      776     0.00     0.00  stbi__get_marker
+  0.17      5.74     0.01      760     0.00     0.00  stbi__parse_png_file
+
+▼ttt5_224_160をgprofで関数単位に見てみる↓
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls   s/call   s/call  name    
+ 70.88     14.07    14.07        8     1.76     1.76  gemm_nn
+  6.20     15.30     1.23        1     1.23     2.20  stbi_zlib_compress
+  3.63     16.02     0.72  4099615     0.00     0.00  stbiw__zlib_countm
+  3.02     16.62     0.60        1     0.60     2.91  stbi_write_png_to_mem
+  2.62     17.14     0.52  4365744     0.00     0.00  rand_normal
+  1.36     17.41     0.27      761     0.00     0.00  load_image_stb
+  1.21     17.65     0.24        8     0.03     0.10  make_convolutional_layer
+  1.01     17.85     0.20        8     0.03     0.04  im2col_cpu
+  0.71     17.99     0.14  2737280     0.00     0.00  im2col_get_pixel
+  0.55     18.10     0.11      760     0.00     0.00  stbi__convert_format
+  0.50     18.20     0.10   765769     0.00     0.00  stbiw__zhash
+  0.50     18.30     0.10        3     0.03     0.03  forward_maxpool_layer
+  0.50     18.40     0.10        1     0.10     3.01  save_image_png
+  0.45     18.49     0.09    13824     0.00     0.00  stbi__idct_block
+  0.45     18.58     0.09       26     0.00     0.00  fill_cpu
+  0.40     18.66     0.08  2363901     0.00     0.00  stbiw__paeth
+  0.40     18.74     0.08   711620     0.00     0.00  stbiw__zlib_bitrev
+  0.40     18.82     0.08        1     0.08     0.19  resize_image
+  0.35     18.89     0.07  1073187     0.00     0.00  get_pixel
+  0.35     18.96     0.07   999460     0.00     0.00  activate
+  0.35     19.03     0.07   937848     0.00     0.00  stbiw__zlib_flushf
+  0.35     19.10     0.07        7     0.01     0.01  normalize_cpu
+  0.30     19.16     0.06   604296     0.00     0.00  set_pixel
+  0.30     19.22     0.06     1690     0.00     0.00  stbi__zbuild_huffman
+  0.30     19.28     0.06      576     0.00     0.00  stbi__YCbCr_to_RGB_row
+  0.30     19.34     0.06        8     0.01     0.01  add_bias
+  0.30     19.40     0.06        7     0.01     0.01  scale_bias
+  0.25     19.45     0.05   994560     0.00     0.00  leaky_activate
+  0.25     19.50     0.05       18     0.00     0.01  activate_array
+  0.25     19.55     0.05        8     0.01     1.76  gemm_cpu
+  0.20     19.59     0.04        7     0.01     0.01  copy_cpu
+  0.15     19.62     0.03      760     0.00     0.00  stbi__parse_huffman_block
+  0.15     19.65     0.03        3     0.01     0.01  stbiw__crc32
+  0.10     19.67     0.02   218687     0.00     0.00  stbi__bit_reverse
+  0.10     19.69     0.02   218687     0.00     0.00  stbi__bitreverse16
+  0.10     19.71     0.02   215822     0.00     0.00  stbi__zhuffman_decode
+  0.10     19.73     0.02    50757     0.00     0.00  stbi__jpeg_huff_decode
+  0.10     19.75     0.02     1152     0.00     0.00  stbi__resample_row_v_2
+  0.05     19.76     0.01   884736     0.00     0.00  stbi__clamp
+  0.05     19.77     0.01   266401     0.00     0.00  stbi__get8
+  0.05     19.78     0.01    85552     0.00     0.00  stbi__fill_bits
+  0.05     19.79     0.01    72838     0.00     0.00  stbi__grow_buffer_unsafe
+  0.05     19.80     0.01    71412     0.00     0.00  stbi__zreceive
+  0.05     19.81     0.01    47136     0.00     0.00  stbi__get16be
+  0.05     19.82     0.01    13824     0.00     0.00  stbi__jpeg_decode_block
+  0.05     19.83     0.01      760     0.00     0.00  stbi__create_png_image_raw
+  0.05     19.84     0.01      170     0.00     0.00  stbi__compute_huffman_codes
+  0.05     19.85     0.01        1     0.01     0.16  stbi__parse_entropy_coded_data
+=======
+self-build:  arm-angstrom-linux-gnueabi-gcc:  5sec
+
+■profileで各関数の割合(-pgしてgprof darknet|less)
+
+@IntelCPU  83％がgemm_nn
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls   s/call   s/call  name    
+ 83.07      1.57     1.57        8     0.20     0.20  gemm_nn
+  2.65      1.62     0.05  4365744     0.00     0.00  rand_normal
+  2.65      1.67     0.05  3832192     0.00     0.00  im2col_get_pixel
+  1.59      1.70     0.03      761     0.00     0.00  ipl_into_image
+  1.59      1.73     0.03        8     0.00     0.01  im2col_cpu
+  1.06      1.75     0.02      763     0.00     0.00  rgbgr_image
+  1.06      1.77     0.02        8     0.00     0.00  add_bias
+  1.06      1.79     0.02        7     0.00     0.00  normalize_cpu
+  1.06      1.81     0.02                             get_image_layer
+  0.53      1.82     0.01  3795462     0.00     0.00  get_pixel
+  0.53      1.83     0.01  1399244     0.00     0.00  activate
+  0.53      1.84     0.01  1392384     0.00     0.00  leaky_activate
+cumulative secondsは-pgで処理が非常に遅くなっている
+-pgなしでは、0.191041seconds
+
+@GT1080 80％ぐらいは画像入出力関係が占める
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls  ms/call  ms/call  name    
+ 42.86      0.06     0.06      761     0.08     0.08  ipl_into_image
+ 21.43      0.09     0.03      763     0.04     0.04  rgbgr_image
+ 14.29      0.11     0.02  3795462     0.00     0.00  get_pixel
+ 14.29      0.13     0.02        1    20.00    27.03  show_image_cv
+  7.14      0.14     0.01        1    10.00    17.03  save_image_jpg
+  0.00      0.14     0.00  4365744     0.00     0.00  rand_normal
+  0.00      0.14     0.00   642762     0.00     0.00  set_pixel
+  0.00      0.14     0.00   112224     0.00     0.00  add_pixel
+  0.00      0.14     0.00    43040     0.00     0.00  overlap
+  0.00      0.14     0.00    21520     0.00     0.00  box_intersection
+  0.00      0.14     0.00    11286     0.00     0.00  get_pixel_extend
+
+■OpenBLASをARMで動かす
+
+https://github.com/xianyi/OpenBLAS
+↑ここからzipに固めてダウンロードしてDE10-Nano上でgccコンパイルする
+展開
+$ unzip OpenBLAS-develop.zip
+$ cd OpenBLAS-develop
+
+△DE10-NanoでARMオブジェクトをセルフコンパイル
+
+＠DE10-Nano
+$ make NUM_THREADS=32
+$ make /opt/OpenBLAS install
+
+これで/opt/OpenBLAS/libなどにインストール
+
+△x86でARMオブジェクトをクロスコンパイル
+
+＠HA8000
+$ make CC=arm-linux-gnueabihf-gcc FC=arm-linux-gnueabihf-gfortran TARGET=ARMV7 NUM_THREADS=32 -j 16
+$ sudo make PREFIX=/opt/OpenBLAS/arm-linux-gnueabihf install
+
+これで/opt/OpenBLAS/arm-linux-gnueabihf以下にインストール
+
+■im2row使用
+https://arxiv.org/pdf/1704.04428.pdf
+↑ここでは、im2col, im2row, kn2row, kn2colの速度比較あり
+AlexNet, VGG-16, LeNetで比較しており、*colより*rowが優勢
+
+https://github.com/gplhegde/convolution-flavors
+↑実装を拾ってきて試す
+↓コピー
+https://github.com/k5iogura/convolution-flavors
+確かにim2row+SGEMM(355msec)は、im2col+SGEMM(462msec)より速い
+DE10-Nanoで、
+
+↓これは、im2row+SGEMM
+$ darknet detect cfg/ttt5_224_160.cfg data/ttt/ttt5_224_160_final.weights data/dog.jpg
+...
+Loading weights from data/ttt/ttt5_224_160_final.weights...64bit OS trained major/minor/revision = 0/2/0 sizeof(size_t)=4
+Done!
+ WOG=0.024201 layer-CONV 0.061973/0.061970 sec.
+layer-   1 0.017432/0.079401 sec.
+ WOG=0.017926 layer-CONV 0.070437/0.149836 sec.
+layer-   3 0.006373/0.156208 sec.
+ WOG=0.002306 layer-CONV 0.023477/0.179682 sec.
+layer-   5 0.001663/0.181345 sec.
+ WOG=0.001313 layer-CONV 0.023961/0.205304 sec.
+ WOG=0.004738 layer-CONV 0.091836/0.297138 sec.
+ WOG=0.000465 layer-CONV 0.005615/0.302752 sec.
+ WOG=0.002381 layer-CONV 0.046469/0.349219 sec.
+ WOG=0.000367 layer-CONV 0.003032/0.352250 sec.
+layer-  11 0.000984/0.353233 sec.
+data/dog.jpg: Predicted in 0.353927 seconds.
+bicycle: 56%
+
+↓これは、im2col+SGEMM
+$ darknet detect cfg/ttt5_224_160.cfg data/ttt/ttt5_224_160_final.weights data/dog.jpg
+...
+Loading weights from data/ttt/ttt5_224_160_final.weights...64bit OS trained major/minor/revision = 0/2/0 sizeof(size_t)=4
+Done!
+ WOG=0.056160 layer-CONV 0.093890/0.093888 sec.
+layer-   1 0.017454/0.111340 sec.
+ WOG=0.062977 layer-CONV 0.115376/0.226713 sec.
+layer-   3 0.006407/0.233119 sec.
+ WOG=0.008232 layer-CONV 0.029399/0.262516 sec.
+layer-   5 0.001655/0.264170 sec.
+ WOG=0.002542 layer-CONV 0.025152/0.289320 sec.
+ WOG=0.009619 layer-CONV 0.096758/0.386076 sec.
+ WOG=0.001025 layer-CONV 0.006228/0.392302 sec.
+ WOG=0.004871 layer-CONV 0.048947/0.441247 sec.
+ WOG=0.000939 layer-CONV 0.003606/0.444852 sec.
+layer-  11 0.000984/0.445835 sec.
+data/dog.jpg: Predicted in 0.446540 seconds.
+bicycle: 56%
+
+■kn2row_conv使用
+デバッグ途中、、、
+
+Loading weights from data/ttt/ttt5_224_160_final.weights...64bit OS trained major/minor/revision = 0/2/0 sizeof(size_t)=4
+Done!
+layer-CONV 0.138197/0.138195 sec.
+layer-   1 0.017490/0.155683 sec.
+layer-CONV 0.094899/0.250580 sec.
+layer-   3 0.006328/0.256907 sec.
+layer-CONV 0.031104/0.288007 sec.
+layer-   5 0.001737/0.289744 sec.
+layer-CONV 0.042856/0.332597 sec.
+layer-CONV 0.157217/0.489812 sec.
+layer-CONV 0.014822/0.504631 sec.
+layer-CONV 0.081860/0.586489 sec.
+layer-CONV 0.007061/0.593548 sec.
+layer-  11 0.000754/0.594300 sec.
+data/dog.jpg: Predicted in 0.595052 seconds.
+
+ムぅむ、速くない;-O
+デバッグは止め

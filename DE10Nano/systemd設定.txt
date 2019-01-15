@@ -1,0 +1,123 @@
+systemdでデモの自動実行
+
+2014辺りから、/etc/init.d/S番号.shからsystemd管理に起動方法が変わっているらしい
+
+shellスクリプトをLinuxの起動処理に忍び込ませることはできなくなった
+
+preloader -> 2nd-bootloader -> init
+↓
+preloader -> 2nd-bootloader -> systemd
+となっている
+
+■起動中に起こることは全部systemctlで管理される
+・systemdは/etc/systemd/system/*.serviceの中を調べて起動順序などを決める
+・スクリプトそのものは↑に置いても起動しない
+・サービス設定ファイルを置いて、その中に*.shの場所を書けば、起動する
+
+
+① /opt/DEMO/bin/init.shを作成
+mkdir -o  /opt/DEMO/bin
+chmod 755 /opt/DEMO/bin
+chown root:root /opt/DEMO/bin/init.sh
+chmod 755 /opt/DEMO/bin/init.sh
+
+② /etc/systemd/system/autodemo.serviceを作成
+root@socfpga:/etc/systemd/system# cat autodemo.service
+[Unit]
+Description = Demo for Obect Detection
+After=local-fs.target
+ConditionPathExists=/opt/DEMO/bin
+
+[Service]
+ExecStart=/opt/DEMO/bin/autoexec.sh
+Restart=no
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
+
+chown root:root /etc/systemd/system/autodemo.service
+chmod 644 /etc/systemd/system/autodemo.service
+
+③ daemonをreloadする
+root@socfpga:/etc/systemd/system# systemctl daemon-reload
+
+どうなったかな？と見る
+root@socfpga:/etc/systemd/system# systemctl status autodemo.service
+● autodemo.service - Demo for Obect Detection
+   Loaded: loaded (/etc/systemd/system/autodemo.service; disabled; vendor preset: enabled)
+   Active: inactive (dead)
+
+disableは自動起動のこと
+enableはデフォルトのこと
+らしい
+
+④ serviceを起動してみる
+root@socfpga:/etc/systemd/system# systemctl start autodemo.service
+root@socfpga:/etc/systemd/system# [ 3039.849125] eth0: device MAC address 0a:f2:06:26:a2:fd
+root@socfpga:/etc/systemd/system# ifc[ 3043.926463] stmmaceth ff702000.ethernet eth0: Link is Up - 1Gbps/Full - flow control off
+とコンソールに表示されて、
+
+root@socfpga:/etc/systemd/system# ifconfig
+eth0      Link encap:Ethernet  HWaddr 0a:f2:06:26:a2:fd
+          inet addr:192.168.137.2  Bcast:192.168.137.255  Mask:255.255.255.0
+          inet6 addr: fe80::8f2:6ff:fe26:a2fd/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+...
+
+ipアドレスが設定されました;-)
+
+⑤ 自動起動をON！
+root@socfpga:/etc/systemd/system# systemctl enable autodemo.service
+Created symlink from /etc/systemd/system/multi-user.target.wants/autodemo.service to /etc/systemd/system/autodemo.service.
+よく分からんがシンボリックリンクで制御しているらしい(ちょっとダサい;`P
+
+どうなったかな？と見る
+root@socfpga:/etc/systemd/system# systemctl status autodemo.service
+● autodemo.service - Demo for Obect Detection
+   Loaded: loaded (/etc/systemd/system/autodemo.service; enabled; vendor preset: enabled)
+   Active: inactive (dead)
+Sep 01 01:42:33 socfpga systemd[1]: Started Demo for Obect Detection.
+
+自動起動もデフォルトもONになってるみたい
+
+⑥ reboot　ウリャ～っと
+...
+Angstrom v2014.12 - Kernel
+socfpga login: [   10.305933] stmmaceth ff702000.ethernet eth0: Link is Up - 1Gbps/Full - flow control off
+root
+Last login: Sat Sep  1 00:52:05 UTC 2018 on ttyS0
+Starting system message bus: dbus.
+
+root@socfpga:~# ifconfig
+eth0      Link encap:Ethernet  HWaddr 96:91:c7:c7:02:ba
+          inet addr:192.168.137.2  Bcast:192.168.137.255  Mask:255.255.255.0
+          inet6 addr: fe80::9491:c7ff:fec7:2ba/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+
+固定IPにセットされてますぅ～:-)
+
+/opt/DEMO/bin/autoexec.shに書き込めばdarknetが自動起動されそうですなぁ
+めんどくせ～なぁ～　systemd
+
+⑦ darknetを自動起動
+/opt/DEMO/bin/autoexec.shにdarknet起動を追記
+
+root@socfpga:~# cat /opt/DEMO/bin/autoexec.sh
+#!/bin/bash
+/sbin/ifconfig eth0 192.168.137.2
+cd /area51/darknetT3/
+. /home/root/init_opencl.sh
+export DISPLAY=192.168.137.100:0
+/area51/darknetT3/darknet detector demo cfg/voc.data cfg/ttt5_224_160.cfg data/ttt/ttt5_224_160_final.weights
+
+darknet起動しましたぁ～、おぉ～DE0NanoのX11サーバーにカメラ画像がでてますぅ～
+成功!
+
+けどDISPLAY変数はconsoleの環境へは引継がれませんね
+
+----------------------------------------
+参照はココ
+https://qiita.com/tkato/items/6a227e7c2c2bde19521c
+とかココ
+https://qiita.com/shosan87/items/f65b43373b895edb2946

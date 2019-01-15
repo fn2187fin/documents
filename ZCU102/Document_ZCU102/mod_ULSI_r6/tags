@@ -1,0 +1,135 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+Accept	RxTx.hpp	/^	int Accept(){$/;"	f	class:inetRxTx
+BUFSIZE	main.c	7;"	d	file:
+Bind	RxTx.hpp	/^	void Bind(){$/;"	f	class:inetRxTx
+CHANNEL	main.cpp	20;"	d	file:
+CMD_NOP	main.cpp	22;"	d	file:
+CMD_RESET_SUBFRAME_RNG	main.cpp	24;"	d	file:
+CMD_TOGLE_AFTER_BEFORE	main.cpp	23;"	d	file:
+Connect	RxTx.hpp	/^	int Connect(){$/;"	f	class:inetRxTx
+Create_Image	main.c	/^Image *Create_Image(int width, int height)$/;"	f
+DEBUG	main.c	9;"	d	file:
+FILEHEADERSIZE	main.c	77;"	d	file:
+Free_Image	main.c	/^void Free_Image(Image *img)$/;"	f
+HEADERSIZE	main.c	79;"	d	file:
+HEIGHT	main.cpp	19;"	d	file:
+INFOHEADERSIZE	main.c	78;"	d	file:
+Image	main.c	/^}Image;$/;"	t	typeref:struct:__anon2	file:
+MV	main.c	/^void MV(struct layer dst, struct matrix matrix, struct layer vector){$/;"	f
+MV_conv	main.c	/^void MV_conv(struct layer dst, struct matrix matrix,$/;"	f
+PROC_FREE	main.c	891;"	d	file:
+PROC_FREE	main.hpp	6;"	d
+PROC_INIT	main.c	889;"	d	file:
+PROC_INIT	main.hpp	4;"	d
+PROC_RECOG	main.c	890;"	d	file:
+PROC_RECOG	main.hpp	5;"	d
+ReLU	main.c	/^void ReLU(struct layer src){$/;"	f
+Read_Bmp	main.c	/^Image *Read_Bmp(char *filename)$/;"	f
+Rgb	main.c	/^}Rgb;$/;"	t	typeref:struct:__anon1	file:
+THRESHOLD	main.c	8;"	d	file:
+TIME	main.c	12;"	d	file:
+WIDTH	main.cpp	18;"	d	file:
+Write_Bmp	main.c	/^int Write_Bmp(char *filename, Image *img)$/;"	f
+Y	main.c	11;"	d	file:
+Y	main.hpp	7;"	d
+_RXTX_HPP_	RxTx.hpp	2;"	d
+__MAIN_HPP__	main.hpp	2;"	d
+a	main.c	/^  unsigned int a;$/;"	m	union:binary_float	file:
+abort_stop	main.c	/^void abort_stop(char *message){$/;"	f
+addr_conn	RxTx.hpp	/^		struct sockaddr_in addr_conn;$/;"	m	class:inetRxTx	typeref:struct:inetRxTx::sockaddr_in
+addr_serv	RxTx.hpp	/^		struct sockaddr_in addr_serv;$/;"	m	class:inetRxTx	typeref:struct:inetRxTx::sockaddr_in
+after_classify	main.c	/^int after_classify(int proc, unsigned char image[3][Y][Y]){$/;"	f
+ave_pooling	main.c	/^void ave_pooling(struct layer dst, struct layer src, int ksize, int stride){$/;"	f
+b	main.c	/^	unsigned char b;$/;"	m	struct:__anon1	file:
+before_classify	main.c	/^int before_classify(int proc, unsigned char image[3][Y][Y]){$/;"	f
+bias	main.c	/^  union binary_float bias;$/;"	m	struct:convolution	typeref:union:convolution::binary_float	file:
+binary_float	main.c	/^union binary_float{$/;"	u	file:
+cifar_data	main.c	/^struct cifar_data{$/;"	s	file:
+cifar_dataset	main.c	/^struct cifar_dataset{$/;"	s	file:
+client	RxTx.hpp	/^		struct sockaddr_in client;$/;"	m	class:inetRxTx	typeref:struct:inetRxTx::sockaddr_in
+coef	main.c	/^  union binary_float ***coef;$/;"	m	struct:convolution	typeref:union:convolution::binary_float	file:
+conv	main.c	/^  struct convolution *conv;$/;"	m	struct:net_param	typeref:struct:net_param::convolution	file:
+conv2matrix	main.c	/^struct matrix conv2matrix(struct net_param src){$/;"	f
+convolution	main.c	/^struct convolution{$/;"	s	file:
+data	main.c	/^	Rgb *data;$/;"	m	struct:__anon2	file:
+data	main.c	/^  unsigned char data[1][28][28];$/;"	m	struct:mnist_data	file:
+data	main.c	/^  unsigned char data[3][32][32];$/;"	m	struct:cifar_data	file:
+demo_after_contraction_classify_matrix	main.c	/^void demo_after_contraction_classify_matrix(){$/;"	f
+demo_after_contraction_classify_matrix2	main.c	/^void demo_after_contraction_classify_matrix2(){$/;"	f
+demo_after_contraction_cognition_matrix	main.c	/^int demo_after_contraction_cognition_matrix$/;"	f
+demo_before_contraction_classify_matrix	main.c	/^void demo_before_contraction_classify_matrix(){$/;"	f
+demo_before_contraction_cognition_matrix	main.c	/^int demo_before_contraction_cognition_matrix$/;"	f
+disconnect	RxTx.hpp	/^	void disconnect(){close(sock_serv);}$/;"	f	class:inetRxTx
+elapsed_time	main.c	/^double elapsed_time(struct timeval before, struct timeval after){$/;"	f
+elapsed_time	main.cpp	/^double elapsed_time(struct timeval before, struct timeval after){$/;"	f
+endian	main.c	/^unsigned int endian(unsigned int src){$/;"	f
+eoc	RxTx.hpp	/^	void eoc(){close(sock_conn);}$/;"	f	class:inetRxTx
+f	main.c	/^  float f;$/;"	m	union:binary_float	file:
+free_layer	main.c	/^void free_layer(struct layer src){$/;"	f
+free_matrix	main.c	/^void free_matrix(struct matrix src){$/;"	f
+free_net_param	main.c	/^void free_net_param(struct net_param src){$/;"	f
+g	main.c	/^	unsigned char g;$/;"	m	struct:__anon1	file:
+gen_layer	main.c	/^struct layer gen_layer(int x, int y, int z, int pad){$/;"	f
+get_bitmap	main.c	/^void get_bitmap(unsigned char image[3][Y][Y], char *path){$/;"	f
+get_conv	main.c	/^struct net_param get_conv(char *path){$/;"	f
+get_ip	main.c	/^struct net_param get_ip(char *path){$/;"	f
+get_meanfile	main.c	/^void get_meanfile(float mean[3][Y][Y], char *path){$/;"	f
+global_calc_number	main.c	/^int global_calc_number;$/;"	v
+height	main.c	/^        int height;$/;"	m	struct:__anon2	file:
+inetRxTx	RxTx.hpp	/^	inetRxTx(const char *ipaddrname, unsigned int port){$/;"	f	class:inetRxTx
+inetRxTx	RxTx.hpp	/^class inetRxTx {$/;"	c
+input_2_layer	main.c	/^struct layer input_2_layer$/;"	f
+ip2matrix	main.c	/^struct matrix ip2matrix(struct net_param src){$/;"	f
+label	main.c	/^  int label;$/;"	m	struct:cifar_data	file:
+label	main.c	/^  int label;$/;"	m	struct:mnist_data	file:
+layer	main.c	/^struct layer{$/;"	s	file:
+len	RxTx.hpp	/^		int len;$/;"	m	class:inetRxTx
+m	main.c	/^  int n, m;$/;"	m	struct:matrix	file:
+main	main.c	/^int main(int argc, char *argv[]){$/;"	f
+main	main.cpp	/^int main(int argc,char**argv){$/;"	f
+matrix	main.c	/^struct matrix{$/;"	s	file:
+max_pooling	main.c	/^void max_pooling(struct layer dst, struct layer src, int ksize, int stride){$/;"	f
+maxarg	main.c	/^int maxarg(struct layer src){$/;"	f
+mnist_data	main.c	/^struct mnist_data{$/;"	s	file:
+mnist_dataset	main.c	/^struct mnist_dataset{$/;"	s	file:
+n	main.c	/^  int n, m;$/;"	m	struct:matrix	file:
+n	main.c	/^  int n;$/;"	m	struct:layer	file:
+net_param	main.c	/^struct net_param{$/;"	s	file:
+num_conv	main.c	/^  int num_conv;$/;"	m	struct:net_param	file:
+number	main.c	/^  int number;$/;"	m	struct:cifar_dataset	file:
+number	main.c	/^  int number;$/;"	m	struct:mnist_dataset	file:
+pad	main.c	/^  int x, y, z, pad;$/;"	m	struct:layer	file:
+print_elapsed_time	main.c	/^void print_elapsed_time(struct timeval before, struct timeval after){$/;"	f
+print_elapsed_time2	main.cpp	/^void print_elapsed_time2(struct timeval before, struct timeval after){$/;"	f
+print_output	main.c	/^void print_output(struct layer output){$/;"	f
+r	main.c	/^	unsigned char r;$/;"	m	struct:__anon1	file:
+recv_conn	RxTx.hpp	/^	int recv_conn(unsigned char *buf, int len){$/;"	f	class:inetRxTx
+recv_serv	RxTx.hpp	/^	int recv_serv(unsigned char *buf, unsigned int len){$/;"	f	class:inetRxTx
+send_conn	RxTx.hpp	/^	int send_conn(unsigned char *buf, int len){$/;"	f	class:inetRxTx
+send_serv	RxTx.hpp	/^	int send_serv(unsigned char *buf, int len){$/;"	f	class:inetRxTx
+set	main.c	/^  struct cifar_data *set;$/;"	m	struct:cifar_dataset	typeref:struct:cifar_dataset::cifar_data	file:
+set	main.c	/^  struct mnist_data *set;$/;"	m	struct:mnist_dataset	typeref:struct:mnist_dataset::mnist_data	file:
+setup_matrix	main.c	/^struct matrix setup_matrix(char *path){$/;"	f
+setup_matrix_conv	main.c	/^struct matrix setup_matrix_conv(char *path){$/;"	f
+sock0	RxTx.hpp	/^		int sock0;$/;"	m	class:inetRxTx
+sock_conn	RxTx.hpp	/^		int sock_conn;$/;"	m	class:inetRxTx
+sock_serv	RxTx.hpp	/^		int sock_serv;$/;"	m	class:inetRxTx
+utime	main.cpp	/^suseconds_t utime(){$/;"	f
+value	main.c	/^  union binary_float *value;$/;"	m	struct:layer	typeref:union:layer::binary_float	file:
+value	main.c	/^  union binary_float *value;$/;"	m	struct:matrix	typeref:union:matrix::binary_float	file:
+width	main.c	/^	int width;$/;"	m	struct:__anon2	file:
+x	main.c	/^  int x, y, z, pad;$/;"	m	struct:layer	file:
+x	main.c	/^  int x, y, z;$/;"	m	struct:matrix	file:
+x	main.c	/^  int x, y, z;$/;"	m	struct:net_param	file:
+y	main.c	/^  int x, y, z, pad;$/;"	m	struct:layer	file:
+y	main.c	/^  int x, y, z;$/;"	m	struct:matrix	file:
+y	main.c	/^  int x, y, z;$/;"	m	struct:net_param	file:
+z	main.c	/^  int x, y, z, pad;$/;"	m	struct:layer	file:
+z	main.c	/^  int x, y, z;$/;"	m	struct:matrix	file:
+z	main.c	/^  int x, y, z;$/;"	m	struct:net_param	file:
+~inetRxTx	RxTx.hpp	/^	~inetRxTx(){close(sock_serv);}$/;"	f	class:inetRxTx

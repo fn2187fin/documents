@@ -1,0 +1,186 @@
+MiNiNをdarknetへ移植
+そろそろchainer-NiNでのネットワークも固まってきたので、darknetへ移植
+※Linux上での対象物の追跡型アプリでは、デジタルズーム状態での推定が走り、誤検出が増える傾向
+※これを抑える学習データも考えられるが後回し
+※Darknetのaugmentationにはcrop処理が入るが、chainer-NiNには無い
+
+darknet_mininリポジトリを作成
+https://github.com/k5iogura/darknet_minin
+
+[★画像入力系～画像拡張]
+
+[■darknetでの教師信号の扱い]
+・darknetのコマンド記法は、
+./darknet yolo train cfg/voc.data cfg/yolo-voc.cfg
+などが基本形
+
+・動作モードと前提としている最終層の形態の関係は、
+detector   :最終層は1x1x5
+yolo       :最終層はNxNxM(=col+row*num_boxes)*(5+classes))
+regressor  :最終層は1x1x1
+なので、mininはdetectorと同等の入力系だが、教師信号の並びが、
+detector = (x,y,w,h,id)
+minin    = (c,r,x,y)
+と異なる
+
+・darknet内部での引数の扱いは、
+① yolo/detector/regressorなどの指定で、教師信号のフォーマットが決まる
+   yolo         REGION_DATA           fill_truth_region    ⇒read_boxes %d %f %f %f %f
+   detector     DETECTION_DATA        fill_truth_detection ⇒↑同じ
+   regressor    REFRESSION_DATA       load_regression_labels_paths %f
+   classifier   CLASSIFICATION_DATA   fill_truth パス名の中にラベル名を探してインデックスを教師信号
+
+float *truthの構造は、
+detection  : [<x><y><w><h><id>] x 教師ファイルライン数(最大num_boxes)
+             <id>を直接推定させる教師信号になっている
+yolo       : [N + N x num_boxes x [<c><class..class><x><y><w><h>]] x 教師ファイルライン数
+             教師ファイルでは画像全体に対する(X,Y)が記述されるので、各BOX内での(x,y)に変換する
+             画像全体内での0.3は、7x7の最終層で考えると、0.3x7-int(0.3x7)=0.1と変換される
+regressor  : [<v>]
+regressor改: [<c><radius><x><y>]
+
+② train/valid/test/demoなどの指定で、darknetの動作モードが決まる
+
+③ yolo-voc.cfg/minin_det.cfgなどの内部で使うロス計算層名で教師信号と推定値のロス計算方法が決まる
+   cost         forward_cost_layer    trurhとpredの2乗誤差計算  cifar/darknet/resnet/vgg-16など
+   region       forward_regin_layer   iouなどの複雑な計算       YOLO
+
+[■MiNiNの教師信号の読み込み]
+MiNiNの最終層は、1x1x4でチャネル方向に、
+<conf> <Radius> <center-X> <center-Y>
+になっている
+
+FlickrAPIなどから独自に集めた教師信号はVOCデータセットと同じく、
+<id> <center-X> <center-Y> <W> <H>
+のフォーマットで書いたので、ファイル読み込み時に、
+
+ファイルフォーマット　<id> <center-X> <center-Y> <W> <H>
+↓
+メモリ上の配置        <conf> <Radius> <center-X> <center-Y>
+とする必要がある
+
+[■位置推定のX座標がほぼ中心を推定する症状]
+chainerでのアルゴ開発時にも同様の症状がでた
+YOLOを参考にaugmentすること、および、対象物を上下左右にクロップすることで解決した
+今回の原因は下記前提を無視したことによるもの
+「regressorモードでは、画像1つに教師信号が1つであって、
+画像をシフトなどしても、教師信号には影響しないタスクにしか使えない前提がある」
+regressorについてaugmentationを比較すると下記
+
+yolo/regressorでのaugmentationの違い
+・regressorモードでのaugmentationは、
+　crop
+　flip
+　rotate/aspect
+　distort
+　などの画像拡張が入るが、教師信号に対しては何もしない(まぁ当然↓;-)
+
+・regressorモードでのaugmentationは教師信号を無視しており、
+　augmentによる画像変換に伴う教師信号の変換処理が実装されていない
+　例えば画像をflip処理しても教師信号はflip処理しない
+
+・yolo/detectorモードでのaugmentationは教師信号を含めて変換処理される
+
+・yoloモードでは最終層(region)がNxNxM(N:最終層のX、Y次元数 M:最終層の1マスに持つデータ数)でありその補正も行う
+  detectorモードの最終層(detection)は1x1xMである
+  つまり、yolo/detectorの違いは最終層(region/detection)での次元数の違い
+
+・regressorのデータ読み込みを処理をload_data_regressionからload_data_regionへ変更
+　load_data_regionはYOLOのデータ読み込み処理であり、
+　crop
+  flip
+  distort
+  などの画像拡張が、画像と教師信号に入る
+
+・load_data_regionと推定結果について(単峰分布)
+　　 　　　　■
+　　 　　　　■
+　 　　　　　■
+　 　　　　　■■
+　   　　　■■■
+　 　　　　■■■
+　 　　■■■■■■■
+　X値    0.2      0.7
+　　　　[単峰なX分布]
+　教師信号の分布を確認するとX,Y共に単峰分布になっている、Xは0.5付近、Yは0.7付近に鋭い山
+　上記データ分布により(?)、人位置追跡の左右方向は弱く、上下方向は上半分に張り付いてほぼ追跡しない
+
+・load_data_regionと推定結果について(双峰分布)
+　データ分布について、
+　　 　　　■　　■
+　　 　　　■　　■
+　 　　　■■　　■■
+　 　　　■■■■■■
+　 　　■■■■■■■■
+　X値  　 0.2      0.7
+　　　　[双峰なX分布]
+　chainer-NiN試行と同様に教師信号の分布を左右上下に山が2つづつある双峰分布に変更し汎化に期待した
+　結果として左右方向への位置推定で追跡反応が強く出た
+　一方、中心に対象が存在するケースも追跡しているように見えるので、汎化している可能性大
+
+・存在推定について、ヴぃ
+　存在推定でネガデータを避けられない
+　存在推定を各種試行
+
+Rev.   左右追跡　上下追跡　Nega分類 完
+alpha     ◎        ×       ×     ○ noobjのcoordsコストを0.1倍
+beta      ○        ×       △     ○ noobjのcoordsコストを0.1倍 objのconfコストを5倍
+gamma     ◎        ×       ×     ○ alphaの条件をlambda_*変数で実現　ランダムシードを2222222
+delta     ◎        ×       ○     ◎ コストは変更なし fsqrt()バグを修正　0.3~0.4のthreshold
+epsilon   ○        ×       △     ○ コストは変更なし x,y共に双峰分布　Nega分類は顔アップが必要
+
+zeta      ◎        ×       △     ○ コストは変更なし チャネル拡張（途中経過）※ x,y共に双峰分布 Nega分類は顔アップが必要
+iota      ―        ―       ×     × Nega分類のみ推定(試行)（途中経過）C=0.12483固定と異常　中止
+kappa     △        ×       △     × コストは変更なし Y方向分布変更（途中経過）上下に動くが異常 中止
+delta2    ◎        ×       ×     ○ deltaのコピー　バグあり短辺正方形crop 縦横判定を0.10 nega画像が増える  xは平均化され、yは0.4~7
+delta3    ―        ―       ―     × deltaのコピー　バグあり長辺正方形crop 縦横判定を0.10　ロス0.22@8千epo 中止
+delta4    ×        ×       ×     ○ deltaのコピー　スペースをboxのセンタ座標から割り出す 上下シフトの率(10倍)を設定
+
+80,000 epoch
+      最終ロス　平均ロス
+alpha  0.103381, 0.090140 avg　③　61,000epochまでロス現象傾向で以降80,000までは減少せず
+beta   0.190374, 0.197771 avg      63,000epochまでロス現象傾向で以降80,000までは減少せず
+gamma  0.074710, 0.079153 avg　①  72,000epochまでロス現象傾向で以降80,000までは減少せず
+delta  0.074128, 0.080737 avg　②　61,000epochまでロス現象傾向で以降80,000までは減少せず
+epsil  0.069076, 0.081631 avg　  　70,000epochまでロス現象傾向で以降80,000までは減少せず
+zeta   0.080783, 0.077915 avg　  　69,000epochまでロス現象傾向で以降80,000までは減少せず
+delta2 0.163000, 0.151096 avg　  　70,000epochまでロス現象傾向で以降80,000までは減少せず
+delta4 0.111007, 0.094923 avg　  　78,000epochまでロス現象傾向で以降80,000までは減少せず
+※ロス雑感：途中経過のウェイトで推定すると、
+　ロスが0.2程度ではほんの少しの追跡動作になるが、ロス0.1以下では非常に大きく追跡する
+※チャネル数拡張により推定処理速度が低下
+
+[★推定系]
+　今のところ修正なし
+
+[★表示系]
+・darknetのモードとして、
+　　test
+　　demo
+　により推定結果の画像が表示できる
+　testでは画像ファイルパスのリストをサポート
+　demoはDarketOnWindowsYOLOv2にpredict_regressor()を追加しWindowsでのカメラ入力をサポート
+
+・Precision/Recallおさらい
+　本来データはPosi/Negaの2種類あり、それぞれ推定値との関係は下記
+
+     ________________
+正答 | Posi |  Nega | ←TP  TN
+正解 | Posi |  Nega |
+誤答 | Nega |  Posi | ←FN  FP
+     ~~~~~~~~~~~~~~~~
+T/F(正誤)+P/N(推定値)
+
+冤罪はFP(犯罪者と誤る)に依存する　Precision = TP/(TP+FP)
+検挙はFN(一般人と誤る)に依存する　Recall    = TP/(TP+FN)
+
+[★学習と推定と主観評価結果]
+入力分布について、x方向を双峰分布にすることで左右の追跡推定が可能
+・学習データの性質から、入力分布のy方向は双峰分布にできない
+・y方向の位置推定は追跡しない
+・存在確率はほとんど正しくない
+・80,000epoch指定でロスがさちるのは60,000epoch過ぎ
+・チャネル拡張で、存在確率の精度は微妙に上がる
+
+以上で終わり
+(darknetでのtiny-YOLO系学習に移る)

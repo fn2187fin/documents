@@ -1,0 +1,282 @@
+yolov2のtiny-yolo.cfgを縮小したネットワークで学習認識を試す
+
+~/Darknet/darknetにて試す
+
+■まとめ
+学習データ
+　tiny-imagenetでの15分類学習後、imdb全身教師信号データでの検出学習　これがベストだった
+
+最小なネットワーク構成
+  ttt4.cfg(3x360x360⇒7x9x9) 最終グリッド7x6x6では荒さが目立つので7x9x9が限界
+  ウェイトサイズは964KB darknet_sdl/data/ttt/とdarknet_sdl/cfg/以下に格納
+  ttt4_pre_conv4.weights, ttt4_minloss.weights
+
+学習と評価の再現
+finetune $ ./darknet classifier train ttt4_pre15.data ttt4_pre.cfg > job_ttt4_pre15.log
+partial　$ ./darknet detector partial ttt4_pre.cfg TTT3_PRE/ttt3_final.weights TTT4_PRE/ttt4_pre_conv4.weights 4
+learning $ ./darknet detector train voc44_imdb_body.data ttt4.cfg TTT4_PRE/ttt4_pre_conv4.weights >job_ttt4_imdb_body_tinet.log
+demo     >darknet.exe detector demo voc44_imdb_body.data ttt4.cfg ttt4_minloss.weights
+  darknet_sdl/data/ttt/とdarknet_sdl/cfg/以下に格納
+  ttt4_pre.cfg,  ttt4.cfg
+  ttt4_pre15.data, voc44_imdb_body_tinet.data
+
+検出率
+  [学習評価マトリクス]
+  学習DS    　評価DS    　IOU Recall
+  imdb_body   imdb        64% 87%
+  imdb_body   wiki        62% 85%
+  imdb_body   VOC2007     35% 38%
+  imdb_body   VOC2012     43% 54%
+ロス表示
+　38196: 3.403639, 4.233998 avg
+
+処理速度
+　25FPS@Win7-CPU ARM+FPGAに移植しても使い物にならないだろう  1FPS?@ARM+FPGA
+  XNOR-Netなどが必須
+
+カメラ画像
+　対象まで2.5mが限界
+　認識性能は照度に依存するが、評価できない
+
+darknetバグ
+　2件摘出　parse_network_cfgとnetwork.cで、consolidation errorとfloatと64bit size_tの比較
+
+■yolov1とyolov2での違いは、
+出力層
+  yolov1 : classes+(coords+1)*num_boxes
+  yolov2 : (classes+coords+1)*num_boxes
+コマンド
+  detector train data cfg [weights]
+(yolo trainはyolov1のものでv2からはdetector trainを利用するらしい)
+
+①weightsはpre-trainedなで23層のウェイトを含んでいる
+②recallチェックは、./darknet detector recall cfg/voc.data cfg/tiny-yolo-voc.cfg 生成したウェイト
+
+■tinytinytiny cfg 1と2について
+
+ttt1.cfg : tiny-yolo-voc.cfgの各層のチャネルを1/2 分類クラスを2としたもの
+特徴 : 416x416 ⇒ 1/2 1/2 1/2 1/2 1/2 ⇒ 13x13
+重み : 8       ⇒  x2  x2  x2  x2  x2 ⇒ 7
+
+ttt2.cfg : ttt1.cfg入力画像サイズを288(32x9)としたもの
+特徴 : 288x288 ⇒ 1/2 1/2 1/2 1/2 1/2 ⇒ 9x9
+重み : 8       ⇒  x2  x2  x2  x2  x2 ⇒ 7
+
+■tiny-yolo事前評価、学習結果RecallとIOU
+※tiny-yolo-voc.cfgをvocデータセットで学習
+VOCデータセットで評価
+weights　左右　上下  確率　ロス       IOU    Recall
+use      ◎     ◎    ◎    17.134064 60.19% 76.77% ；基準値 nohup ./darknet detector train ./voc.data cfg/tiny-yolo-voc.cfg darknet19_448.conv.23 > job_ty1-with.23.log
+scratch  ○     ○    △    21.994509 46.63% 46.46% ；             ./darknet detector train ./voc.data cfg/tiny-yolo-voc.cfg -i 1 > job_ty1-without.23.log
+  [学習評価マトリクス:追加学習結果]
+  学習DS    　評価DS    　IOU    Recall
+  VOC(20種)   VOC2007     56.84% 69.81%
+  VOC(20種)   VOC2012     57.44% 70.11%
+上記の通り、tiny-yolo-voc.cfgでもウェイト初期値を利用しないと認識性能が極端に落ちる
+
+tiny-yolo-voc.cfgを小型化(parse_network_cfgのデバッグ後free問題consolidation error対策)
+小型化は、
+①最終層regionをnum=1としてNxNx25(coords=4+classes=20+confidence=1)を受け取る
+②入力画像サイズの縮小
+weights　左右　上下  確率　ロス       IOU    Recall
+1/2chan  ○     ○    ○   15.651733  51.90% 60.24% ；TT1 各チャネル1/2 ./darknet detector train cfg/voc.data tt.cfg -i 1 > job_tt1.log
+WH=288   ○     ○    ○   16.505102  48.43% 50.39% ；TT1+初段サイズ288 ./darknet detector train cfg/voc.data tt.cfg -i 1 > job_tt2.log
+
+WH=288は、CPU実行で6.3FPS(158msec/frame)とまともに評価できそうな速度になってきた
+
+③最終層regionをnum=1,classes=2としてNxNx7(coords=4+classes=2+confidence=1)を受け取る
+  分類クラスを2分類：tvmonitor(id=0), person(id=1) idを変換するid_remapファイルをサポートした
+  id_remapサポートは、trainモード完/recallモード完/demoモード未
+  windows版darknetでもparse_network_cfgのconsolidation問題デバッグ
+
+●ttt[12].cfgをtrain_imdb_f01.txtで学習
+  VOCでの学習は数値にならず断念
+
+A train_voc_f01.all.txtでvalidation評価
+weights　左右　上下  確率　ロス       IOU    Recall
+1/2chan                    1.402393   24.83% 　3.92%；TTT1 classes=2     ./darknet detector train cfg/voc.data ttt1.cfg -i 1 > job_ttt1.log
+WH=288                     1.282743   14.59% 　3.92%；TTT1+初段サイズ288 ./darknet detector train cfg/voc.data ttt2.cfg -i 0 > job_ttt2.log
+
+B train_wiki_f01.txtでvalidation評価
+weights　左右　上下  確率　ロス       IOU    Recall
+1/2chan                    1.402393   80.37% 100.00%；TTT1 classes=2     ./darknet detector train cfg/voc.data ttt1.cfg -i 1 > job_ttt1.log
+WH=288                     1.282743   75.93%  98.00%；TTT1+初段サイズ288 ./darknet detector train cfg/voc.data ttt2.cfg -i 0 > job_ttt2.log
+
+④ttt[12].cfgをtrain_imdb_f01_crop_S.txtで学習
+A train_voc_f01.all.txtでvalidation評価
+B train_wiki_f01.txtでvalidation評価
+weights　左右　上下  確率　ロス       IOU    Recall
+1/2chan                    2.019599   76.40%  99.0%；TTT1 classes=2     ./darknet detector train cfg/voc.data ttt1.cfg -i 1 > job_ttt1.log
+WH=288                     1.933933   77.12% 100.0%；TTT1+初段サイズ288 ./darknet detector train cfg/voc.data ttt2.cfg -i 0 > job_ttt2.log
+
+常に人一人だけが現れるという簡単な問題で学習しているので、wikiのような簡単な問題は解ける
+
+●ttt2.cfgで逐次型学習
+./darknet detector train voc22_imdb.data ttt2.cfg TTT1_VOC/ttt2_imdb_final.weights &>job_ttt2_voc_random.log
+顔と全身が混合している教師信号(矛盾あり)
+学習完了
+  [学習評価マトリクス]
+  学習DS    　評価DS    　IOU Recall
+  imdb        VOCtrain    15%  4%
+  imdb        wiki        76% 98%
+  imdb++VOC   imdb        65% 84%
+  imdb++VOC   wiki        74% 98%
+  imdb++VOC   VOC2007     40% 36%
+  imdb++VOC   VOC2012     47% 51%
+
+カメラ画像の主観的評価
+正面顔を正確に捉えている
+顔を教師信号としたimdb,wikiと全身を教師信号としたvocという矛盾を解決するため、imdb,wikiからyolo-voc.cfgで全身の教師信号を作る(wiki_bodyなどと呼ぶ)
+$ ./nohuman.sh -f 1 --no_preview train_imdb_body.txt >train_imdb_f01_body.txt &
+
+●wiki_bodyでttt[12].cfgを逐次型学習(wiki_body)
+./darknet detector train voc22_wiki_body.data ttt2.cfg TTT1_VOC/ttt2_imdb_final.weights >job_ttt2_wiki_body.log
+./darknet detector train voc11_wiki_body.data ttt1.cfg TTT1_VOC/ttt1_imdb_final.weights >job_ttt1_wiki_body.log
+カメラ画像の主観的評価
+正面顔を正確に捉えている
+
+●imdb_bodyでttt[12].cfgを逐次型学習(imdb_body)
+./darknet detector train voc22_imdb_body.data ttt2.cfg TTT1_VOC/ttt2.backup >job_ttt2_imdb_body.log
+./darknet detector train voc11_imdb_body.data ttt1.cfg TTT1_VOC/ttt1.backup >job_ttt1_imdb_body.log
+カメラ画像の主観的評価
+正面顔と横顔を正確に捉えている
+完全な後姿はNG
+両手をあげたりして、いろいろなポーズを作ると認識できなくなる
+
+●imdb_bodyとvoc_bodyでttt1.cfgを逐次型学習(imdb_voc_body)
+./darknet detector train voc11_imdb_voc_body.data ttt1.cfg  TTT1_WIKI_BODY/ttt1_wiki_body_conv11.weights >job_ttt1_imdb_voc_body.log
+
+imdb/wikiはRecallゼロ、学習途中にロスが発散←VOCラベル作成ミス
+num=2として最終層の各グリッドに2オブジェクトを推定　4300epoch辺りからロス発散、失敗
+
+●imdb_bodyとvoc_bodyでttt2.cfgを逐次型学習(imdb_voc_body)
+./darknet detector train voc22_imdb_voc_body.data ttt2.cfg  TTT2_WIKI_BODY/ttt2_wiki_body_conv11.weights >job_ttt2_imdb_voc_body.log
+
+imdb/wikiはRecallゼロ、学習途中にロスが発散←VOCラベル作成ミス
+num=3として最終層の各グリッドに3オブジェクトを推定可能　4500epoch辺りからロス発散、失敗
+
+※オリジナルでのnum=5に対して、num=3まで試したがロス発散の改善みられず
+
+●imdb_bodyでttt3.cfgをスクラッチ学習(imdb_body)
+特徴 : 360x360 ⇒ 1/3 1/4 1/5 ⇒ 6x6
+重み : 6       ⇒  x2  x3  x4 ⇒ 7
+./darknet detector train voc33_imdb_body.data ttt3.cfg >job_ttt3_imdb_body.log
+  [ロス推移]
+Region Avg IOU: 0.756333, Class: 0.999911, Obj: 0.532967, No Obj: 0.027844, Avg Recall: 1.000000,  count: 8
+60200: 5.330645, 4.936599 avg, 0.001000 rate, 10.880000 seconds, 3852800 images
+
+  [学習評価マトリクス]
+  学習DS    　評価DS    　IOU Recall
+  imdb        VOCtrain    15%  4%
+  imdb        wiki        76% 98%
+  imdb_body   imdb        56% 69%
+  imdb_body   wiki        56% 74%
+  imdb_body   VOC2007     29% 11%
+  imdb_body   VOC2012     36% 37%
+
+  [カメラ画像の主観的評価]
+正面顔と横顔を正確に捉えている
+完全な後姿、体が横向きには弱い
+両手をあげたりして、いろいろなポーズには弱い
+距離２ｍを越えると弱い
+6x6の最終グリッドでは認識が外れるケースが目立つ、やはり最終グリッドは9x9が最小かもしれない
+
+  [Win7+CPU]
+  25～35FPS
+
+●imdb_bodyでttt4.cfgをスクラッチ学習(imdb_body)
+最終グリッドを9x9に調整
+特徴 : 360x360 ⇒ 1/2 1/4 1/5 ⇒ 9x9
+重み : 6       ⇒  x2  x3  x4 ⇒ 7
+9x9の最終グリッドで、6x6での認識境界緩和に期待
+./darknet detector train voc44_imdb_body.data ttt4.cfg > job_ttt4_imdb_body.log
+  [ロス推移]
+Region Avg IOU: 0.672917, Class: 0.999575, Obj: 0.467791, No Obj: 0.046070, Avg Recall: 0.875000,  count: 8
+18897: 3.543145, 4.006968 avg, 0.001000 rate, 5.050000 seconds, 1209408 images <=最小ロス
+...
+Region Avg IOU: 0.700239, Class: 0.999898, Obj: 0.336017, No Obj: 0.013682, Avg Recall: 0.875000,  count: 8
+20269: 8.303967, 6.828955 avg, 0.001000 rate, 13.130000 seconds, 1297216 images
+
+  [学習評価マトリクス]
+  学習DS    　評価DS    　IOU Recall
+  imdb        VOCtrain    15%  4%
+  imdb        wiki        76% 98%
+  imdb_body   imdb        65% 83%
+  imdb_body   wiki        62% 86%
+  imdb_body   VOC2007     33% 25%
+  imdb_body   VOC2012     43% 48%
+
+  [カメラ画像の主観的評価]
+正面顔と横顔を正確に捉えている
+完全な後姿、体が横向きには弱い
+両手をあげたりして、いろいろなポーズには弱い
+距離２ｍを越えると弱い
+6x6の最終グリッドでは認識が外れるケースが目立ったが、最終グリッドは9x9ではかなり緩和された、9x9がミニマムだろう
+
+  [Win7+CPU]
+  20～25FPS
+　対ttt3では、最終グリッド9x9/6x6倍で2.5倍の影響がある
+
+●15分類タスク tiny-imagenetでttt4_pre.cfgを学習、初期値作成
+./darknet classifier train ttt4_pre15.data ttt4_pre.cfg > job_ttt4_pre15.log
+10200, 176.432: 0.512955, 0.490239 avg, 0.000000 rate, 1.596637 seconds, 1305600 images
+学習完 partial完 ttt4_pre_conv4.weights
+
+●imdb_voc_body_smallでttt4.cfgを逐次学習(imdb_vo_body_small)
+特徴 : 360x360 ⇒ 1/2 1/4 1/5 ⇒ 9x9
+重み : 6       ⇒  x2  x3  x4 ⇒ 7
+学習データはヒト1人のimdbとvocで40000枚構成
+vocを混ぜることで、色々な角度やポーズでのヒト検出に期待
+vocデータでのロス発散抑止を期待
+./darknet detector train voc44_imdb_voc_body_small.data ttt4.cfg > job_ttt4_imdb_voc_body_small.log
+4000epoch辺りからロス発散　失敗　▲stepsバグ修正版で学習中 発散は抑止できた
+scale = -1 100 3000 5000 8000 10000 20000 40000
+steps = .1  10   .1   .1   .1    .1    .1    .1
+(steps = .1  10   .5   .5   .1    .1    .1<=これでは発散)
+
+●tiny-imagenetで分類学習したウェイトから、imdb_bodyでttt4.cfgを逐次学習(imdb_body_tinet)
+ウェイト4層まで取り出し(ttt4_pre.cfgで10,000epochまで学習したウェイトから)
+stepsバグ対策によるロス低減期待
+$ ./darknet detector partial ttt4.cfg TTT3_PRE/ttt3_final.weights TTT4_PRE/ttt4_pre_conv4.weights 4
+$ ./darknet detector train voc44_imdb_body.data ttt4.cfg TTT4_PRE/ttt4_pre_conv4.weights >job_ttt4_imdb_body_tinet.log
+scale = -1 100 4000 10000 20000 40000
+steps = .1  10   .5    .5    .1    .1
+Region Avg IOU: 0.636113, Class: 0.999739, Obj: 0.319892, No Obj: 0.034206, Avg Recall: 0.875000,  count: 8
+38196: 3.403639, 4.233998 avg, 0.000003 rate, 5.270000 seconds, 2444544 images
+ロス低減効果なし、VOC2012再現率は微増+6%
+
+  [学習評価マトリクス]
+  学習DS    　評価DS    　IOU Recall
+  imdb        VOCtrain    15%  4%
+  imdb        wiki        76% 98%
+  imdb_body   imdb        64% 87%
+  imdb_body   wiki        62% 85%
+  imdb_body   VOC2007     35% 38%
+  imdb_body   VOC2012     43% 54%
+
+  [カメラ画像の主観的評価]
+正面顔と横顔を正確に捉えて、完全な後姿、体が横向きに強くなっている
+両手をあげたりして、いろいろなポーズにも強くなっている
+距離2m以上では弱かったが、距離2.5ｍまでは広がった感覚 距離があっても顔が見えると捉える傾向
+ロス低減効果なしで、VOC2012再現率が微増+6%だが、再現率の6%向上はカメラ画像としては効果がはっきりわかる
+分類と検出の逐次学習で再現率が微増することは確か
+ロス値だけではカメラ画像での強さは測れないのかもしれない
+
+  [Win7+CPU]
+  20～25FPS
+
+●lcurve.pyで最小ロス値のウェイトファイルを探す
+$ lcurve.py jobHogeHoge.log
+にて最小ロス値を示し、かつ保存されたウェイトファイルを探す
+数字 avgとSaveing ファイルをlogから抜き出して表示する
+
+※4,000epochを超えると、ロスが発散する傾向がある
+※darknetのPFで最小ロス時にウェイト保存すべき　
+修正済
+
+●network.c内stepsオプションの扱いにバグ
+scale = -1 100 4000 10000 20000 40000
+steps = .1  10   .5    .5    .1    .1
+各epochまで各scaleとlearning_rateの掛け算になる　修正済
+例えば、learning_rate=0.001のとき、epoch0~100までは.1x0.001、101~4000までは.1x10x0.001
+この学習パラメータの調整は学習データと初期ウェイトに依存しているのでむずかしい

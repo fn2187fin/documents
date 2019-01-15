@@ -1,0 +1,91 @@
+[■XNOR-Netのchainer実装がころがってたので試す]↓
+# git clone https://github.com/rarilurelo/XNOR-Net
+# cd XNOR-Net
+メインスクリプトはcifar10_cnn.pyで、kerasを使ってcifar10データをダウンロードしている
+keras:Theano, Tensorflowなどの上位インタフェースラッパ
+
+# aptitude installl -y pip
+# pip install chainer==1.24
+# pip install keras
+残りの必要なものは適当に、
+Cython python-dev libblas liblapack theano graphvizなど
+
+でcifar10_cnn.pyを起動
+# cifar10_cnn.py
+cifar10のデータフォーマットのチェックで落ちる
+from pdb import *
+と
+set_trace()
+を入れてざっとデバッグすると、cifar10からダウンロードしたフォーマットがchainerと合わないみたい
+x_train=np.rollaxis(x_train,3,1)
+x_test =np.rollaxis(x_test,3,1)
+とcifar10_cnn.pyの先頭付近を修正して、再起動
+
+# cifar10_cnn.py
+動いてるな:-o
+
+graph.dotなるファイルができるので
+# dot -Tpng pgraph.dot -o layer.png
+# eog layer.png
+net.pyの内容を可視化しただけだが、、、見やすいかぁ？
+
+cifar10を学習するネットワークにしてはちっちゃ
+Conv-Conv-FC-FC　だけ;^<
+
+[■学習を試す]
+5万データをミニバッチ100がデフォルトで、遅い;-<
+cifar10_cnn.pyを修正して、データサイズとミニバッチサイズを小さくして試す
+
+データ1,000でミニバッチ50にする
+# cifar10_cnn.py -b 50 -l 1000
+
+cifar10_cnn.pyの学習・試験パターンは、総画像数Nと試験数N_testを用いる
+[学習]
+①x_trainとx_trainからミニバッチサイズ分の画像とGTをランダムに選んで、x,tにセット
+②optimizer（ADAM使用)でmodelをアップデート
+③model.loss.dataにロス平均値が入るらしいので、ミニバッチ数を掛けてsum_lossへ加える
+④model.accuracy.dataに精度平均値が入るらしいので、ミニバッチ数を掛けてsum_accuracyへ加える
+⑤総画像Nまでミニバッチサイズ飛ばしでloop　①へ
+
+[試験]
+①ミニバッチサイズ分の画像とGTを選んで、x,tにセット(ランダムではない)
+②loss=model(x,t)で推定させて、ロスを算出
+　　loss.dataにミニバッチサイズ分のロス値が入る
+③model.loss.dataにロス平均値が入るらしいので、ミニバッチ数を掛けてsum_lossへ加える
+④model.accuracy.dataに精度平均値が入るらしいので、ミニバッチ数を掛けてsum_accuracyへ加える
+⑤試験数N_testまでミニバッチサイズ飛ばしでloop ①へ
+⑥sum_loss/Nとsum_accuracy/Nを表示
+
+[epoch]
+epochはデフォルトで20回繰り返す
+
+[■cifar10データ]
+学習   50,000データ(x_train, y_train)
+試験   10,000データ(x_test,  y_test)
+32x32のカラー画像と正解ラベル
+
+x_train=( 50000, 3, 32, 32 )の学習画像  y_train=( 50000, )のGT
+x_test =( 10000, 3, 32, 32 )の試験画像  y_test =( 10000, )のGT
+___
+|
+...
+|
+...
+|___ 10,000(x_testとy_test) 1万データの先頭から100個づつ1万データを試験
+|
+...
+|___ 50,000(x_trainとy_test) 5万までの乱数順列から100個を選びながら5万データを順序ランダムで学習
+
+↑これで5万データを20(==epoch)繰り返す
+つまり5万データを学習して1万データで試験を20回繰り返す、遅い;-<
+
+オプションlearnNを追加して、
+x_train=x_train[:learnN]
+y_train=y_train[:learnN]
+x_test =x_test[:learnN]
+y_test =y_test[:learnN]
+にする、つまりlearnN個データを順序ランダムで学習、先頭から試験するオプション追加
+
+これを利用して、1,000データでミニバッチ50でも遅い
+テスト精度も5万のうち先頭の1,000データしか学習していないので15%程度までしか上がらないのか？
+

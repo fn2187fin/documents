@@ -1,0 +1,106 @@
+forward_convolutional_layerからbatchnormを折り畳む試行
+成功した
+※注意
+YOLOのBatchNormでは、Biasの項が使われておらず、BatchNorm処理の後で、Bias項を加えている
+参照
+http://machinethink.net/blog/object-detection-with-yolo/
+
+■オリジナル forward_convolutional_layer@CPU
+
+l.outputを０で初期化
+
+im2colでnet.input(feature-map)からnet.workspace(b行列)を作成
+
+for(batch)
+  gemmでl.output(c行列) = Σ l.weights(a行列) * net.workspace(b行列)
+
+forward_batchnorm_layer:
+  net.inputをl.outputへコピー
+  l.outputをl.xへコピー
+  normalize_cpu:
+    for(filter)
+      for(l.out_h * l.out_w)
+         l.output = (l.output - l.rolling_mean)/(√l.rolling_variance + .000001f)
+  scale_bias:
+    l.output *= l.scales
+  add_bias:
+    l.output += l.biases
+
+activate_array
+
+以下の変形は、DEMOモードに異常が発生する
+Fold BatchNormの確認用
+■変形1
+l.outputを０で初期化
+
+★変形1 l.weights(a行列) /= (√l.rolling_variance + .000001f)
+
+im2colでnet.input(feature-map)からnet.workspace(b行列)を作成
+
+for(batch)
+  gemmでl.output(c行列) = Σ l.weights(a行列) * net.workspace(b行列)
+
+forward_batchnorm_layer:
+  net.inputをl.outputへコピー
+  l.outputをl.xへコピー
+  normalize_cpu:
+    for(filter)
+      for(l.out_h * l.out_w)
+★変形1    l.output = l.output - l.rolling_mean/(√l.rolling_variance + .000001f)
+  scale_bias:
+    l.output *= l.scales
+  add_bias:
+    l.output += l.biases
+
+activate_array
+
+■変形2
+l.outputを０で初期化
+
+★変形1 l.weights(a行列) /= (√l.rolling_variance + .000001f)
+★変形2 l.weights(a行列) *= l.scales
+
+im2colでnet.input(feature-map)からnet.workspace(b行列)を作成
+
+for(batch)
+  gemmでl.output(c行列) = Σ l.weights(a行列) * net.workspace(b行列)
+
+forward_batchnorm_layer:
+  net.inputをl.outputへコピー
+  l.outputをl.xへコピー
+  normalize_cpu:
+    for(filter)
+      for(l.out_h * l.out_w)
+★変形2    l.output = l.output - l.scales * l.rolling_mean/(√l.rolling_variance + .000001f)
+  scale_bias:
+★変形2    // l.output *= l.scales
+  add_bias:
+    l.output += l.biases
+
+activate_array
+
+■変形3
+l.outputを０で初期化
+
+★変形1 l.weights(a行列) /= (√l.rolling_variance + .000001f)
+★変形2 l.weights(a行列) *= l.scales
+
+im2colでnet.input(feature-map)からnet.workspace(b行列)を作成
+
+for(batch)
+  gemmでl.output(c行列) = Σ l.weights(a行列) * net.workspace(b行列)
+
+forward_batchnorm_layer:
+  net.inputをl.outputへコピー
+  l.outputをl.xへコピー
+  normalize_cpu:
+    for(filter)
+★変形3 // for(l.out_h * l.out_w)
+★変形3  l.biases = 0 - l.scales * l.rolling_mean/(√l.rolling_variance + .000001f)
+★変形2 // scale_bias:
+★変形2 //   l.output *= l.scales
+  add_bias:
+    l.output += l.biases
+
+activate_array
+

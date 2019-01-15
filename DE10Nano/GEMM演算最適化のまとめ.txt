@@ -1,0 +1,58 @@
+■GEMM演算最適化に用いた方法
+
+！最も重要
+darknetで予測を起動すると、1回目(1層目)は遅い！、ので、画像の予測時間測定には注意が必要
+(FPGAの動作にCPUキャッシュが関係しているらしく、BLASでの動作と傾向が同じであった)
+複数画像入力での実行時間の計測は、"elapsed_time.xlsx"が正しく、
+  FPGAを使用した場合 0.765sec/image
+  BLASを使用した場合 0.352sec/image
+が最終結果である
+
+■Darknet_tttのDE10Nano移植で用いた方法(3-steps)
+gemmのOpenCLを書き換えながら、移植すべきFPGA実装候補を探した
+
+(1) メモリ転送処理の性能を測定
+    メモリ転送性能での処理時間を考える
+
+(2) GEMMのテストベンチを利用してFPGA版のgemm_nnをFPGA化
+
+    ※git clone https://github.com/k5iogura/gemm_nn_FPGA
+    ※git clone https://github.com/k5iogura/darknet_ttt
+
+    ttt5_224_160.cfgでのgemm_nn引数である各層のM/N/Kを求め、テストベンチを作成
+    gemm_nn() := C = αA * B
+     M:=Aの行数
+     N:=Bの列数
+     K:=Aの列数でありBの行数でもある
+
+    darknet_ttt/src/gemm.c内のgemm_nn(naiveと呼ぶ)関数の実行時間を計測し基準とする
+    naive処理時間と比較して、適切そうなgemm_nnのFPGA実装候補を選ぶ
+
+(3) 複数のgemm_nnのFPGA実装をdarknet_tttへ移植し実行時間を測定
+    複数画像での予測処理時間を測定する
+    darknet_tttとして最適なFPGA実装を選ぶ
+
+■実施結果概要
+(1) メモリ転送処理の性能を測定
+    結果は使わなかった
+
+(2) GEMMのテストベンチを利用してFPGA版のgemm_nnをFPGA化
+    FPGA処理で、1.0 image/sec程度(naive対で5倍高速化)の処理時間となる見通しがたった
+    単一画像での時間計測が不正確であることに気付かず、不正確な測定結果を信じてdarknet_tttへの移植を開始した
+
+(3) 複数のgemm_nnのFPGA実装をdarknet_tttへ移植し実行時間を測定
+    単一画像での時間計測が不正確であることに気付いた、ただし再測定はせず移植を継続
+    複数のFPGA実装候補とBLASについて、画像の予測時間を測定した
+    処理性能は、
+       全てのFPGA実装候補＜BLAS性能
+      FPGA実装候補の最速値＝0.765 sec/image (darknet_ttt/ocl/gemm_ntt_jikK.cl)
+      BLASの最速値       ＝0.352 sec/image
+    であったため、FPGAの使い道に疑念が生じた
+    CPUでのカメラ処理＋BLASのオフロードをFPGA利用目的とし、GEMM演算にFPGA+BLASを採用した
+    FPGA＋BLASでの画像予測をメインスレッド、CPUでのカメラ処理をサブスレッド化する構造とし、mutexでの同期によりデータ受渡しを排他制御
+    ttt5_224_160.cfgのカメラ画像予測で、
+      3.5〜4.0 FPS
+     という結果となった
+
+20180908
+

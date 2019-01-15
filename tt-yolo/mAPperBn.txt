@@ -1,0 +1,13 @@
+mAP ／ BnFLOPs
+
+model       mAP    FLOPs   mAP/Bn test
+darknetY    50.9%   0.91Bn 55.89  [VOC2007]
+tiny-YOLO   57.1%   6.97Bn  8.19  [VOC2007]
+YOLOv2-416  76.8%  34.90Bn  2.20  [VOC2007]
+YOLOv3-320  51.5%  38.97Bn  1.32  [COCO]
+YOLOv2-544  78.6%  59.68Bn  1.28  [VOC2007]
+YOLOv3-416  55.3%  65.86Bn  0.84  [COCO]
+YOLOv2-608  48.1%  62.94Bn  0.76  [COCO]
+YOLOv3-608  57.9% 140.69Bn  0.41  [COCO]
+
+darknetY.cfg: darknet.cfg + region layer

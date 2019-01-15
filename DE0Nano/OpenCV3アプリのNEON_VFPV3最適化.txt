@@ -1,0 +1,54 @@
+※以下OpenCVライブラリをStatic/Dynamicリンクした実行可能ファイルを"OpenCVアプリ"と呼ぶ
+"OpenCV3テストアプリの実行結果"へ続く
+
+[■NEONとVFPV3サポートでarm用OpenCVライブラリのビルドやり直し]
+めっちゃおっそいopencv_perf_coreだが、SIMD(NEON)とかVFP(VFPV3)とかで速くなるもんだろうか？
+で、OpenCVのWebページにNEONとVFPV3でOpenCVを最適化する指示マクロについて書かれていたので、
+ENABLE_NEON=ONとENABLE_VFPV3=ON
+のマクロ追加して再ビルド
+
+#!/bin/sh
+cmake \
+-D CMAKE_INSTALL_PREFIX=~/libs/opencv-3.2_armhf_NEON_VFPV3/release/installed \
+-D CMAKE_TOOLCHAIN_FILE=~/libs/opencv/platforms/linux/arm-gnueabi.toolchain.cmake \
+-D CMAKE_CXX_COMPILER=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-g++ \
+-D CMAKE_C_COMPILER=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-gcc \
+-D CMAKE_AR=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-ar \
+-D CMAKE_BUILD_TYPE=Release \
+-D WITH_EIGEN=OFF \
+-D WITH_IPP=OFF \
+-D BUILD_SHARED_LIBS=OFF \
+-D BUILD_EXAMPLES=OFF \
+-D BUILD_TESTS=ON \
+-D BUILD_NEW_PYTHON_SUPPORT=OFF \
+-D BUILD_PYTHON_SUPPORT=OFF \
+-D WITH_OPENCL=OFF \
+-D WITH_CUDA=OFF \
+-D WITH_GTK=OFF \
+-D WITH_PNG=OFF \
+-D WITH_JPEG=OFF \
+-D WITH_CAROTENE=OFF \
+-D ENABLE_NEON=ON \
+-D ENABLE_VFPV3=ON \
+.. | tee log
+
+2つのマクロを付けることで、cmakeのログは、
+...
+--   CPU/HW features:
+--     Baseline:
+--       requested:                 DETECT
+--       disabled:                  VFPV3 NEON
+...
+↓
+...
+--   CPU/HW features:
+--     Baseline:                    VFPV3 NEON
+--       requested:                 DETECT
+--       required:                  VFPV3 NEON
+...
+
+と変わって、NEONとVFPV3のdisableが取れている:-)ので、
+
+# make
+ライブラリ全体の再ビルドを始めたので、NEONやVFPV3はライブラリ全体に効果がでるのかもしれないな:-o)
+ビルド完了、バイナリのサイズが小さいな、でopencv_perf_coreをDE0で動かす:-)おっそい

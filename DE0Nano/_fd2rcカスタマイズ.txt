@@ -1,0 +1,30 @@
+[■デフォルトファイルをコピーする]
+cp /etc/fdclone/fd2rc ~/.fd2rcc
+
+[■カスタマイズ]
+man fdを見ながら使い慣れた環境へ直す
+
+時刻でソートして表示
+SORTTYPE=4
+
+カラー表示
+ANSICOLOR=1
+ANSIPATETTE="89624351881"
+
+ページャ変更
+PAGER=less
+
+エディタ変更
+EDITOR=vi
+
+言語環境変更
+export LANG=C
+
+ディレクトリ表示モードで^Hをディレクトリの上へ上がるに設定
+bind ^H OUT_DIR
+
+Shellモードで^Hを1文字削除に設定
+keymap BS ^H
+
+1列表示をデフォルトに
+DEFCOLUMNS=1

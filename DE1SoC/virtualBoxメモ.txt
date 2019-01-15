@@ -1,0 +1,23 @@
+virtualBox 上でUbuntu立上げメモ
+　・WindowsPCへのvirtualBoxのインストールは簡単のため省略
+　・etherアダプタは、OnBoardとUSBアダプタ２つ準備
+　・serialはserial USBアダプタ
+　・ether USBアダプタはDE1SOCと接続。OnBoardはインターネット接続
+
+　[物理的なつながり関係]
+　・WindowsPC⇔DE1SOC間は、serialとetherの２経路で接続
+
+　[Windows設定]
+　・WindowsのOnBoardアダプタのネットワーク共有を外すこと
+　・Windowsのether USBアダプタは192.168.0.1をIPアドレスに設定
+
+　[virtualBoxの設定]
+　・virtualBoxではether USBアダプタを無効にすること
+　・virtualBoxではserial USBアダプタを無効にすること
+
+　[Ubuntuの設定]
+　・ifconfigや/etc/network/interfacesなどで固定IP192.168.0.1に設定
+
+ether USBアダプタを無効にしているにもかかわらず、192.168.0.2へ接続できる状態。不思議
+
+

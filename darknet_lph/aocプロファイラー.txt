@@ -1,0 +1,28 @@
+プロファイラの使い方↓
+
+https://www.slideshare.net/HIDEOMISUZUKI2/gui-20160610
+
+プロファイラ入りでコンパイル要
+$ aoc -v -report -profile vector_add.cl -o vector_add.aocx
+
+実機で起動すると、profile.monファイルが出来るので、PCへ転送して、
+
+レポートを見る
+$ export ACL_PROFILE_TIMER=1
+$ aocl report vector_add.aocx profile.mon
+ACL_PROFILE_TIMER=1でメモリのアクセス状況が表示される
+
+説明(参照先)
+Occupancy %が低い
+・パイプラインの稼働率が低い
+・カーネル実行していない期間が長いってこと
+
+Stall％が低い
+・メモリアクセス、チャネルアクセスが競合
+・アクセスパターンが悪い
+・チャネルアクセスでリードとライトが不均衡になっている
+
+BandwidthのEfficiencyが低い
+・有効なデータを得るのに帯域が足りない
+・アクセスパターンが悪い
+・扱うデータ量が少なくオーバーヘッドが大きい

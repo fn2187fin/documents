@@ -1,0 +1,129 @@
+darknetのg++コンパイルを通す
+https://github.com/k5iogura/darknet_ttt
+
+まとめ
+①C++としてはコード修正しない前提での修正は#defineが使えるので簡単
+  ヘッダファイルに↓を含める
+　#ifdef __cplusplus
+   #define new New
+   #define class Class
+   extern "C" {
+  #endif
+  // C関数の宣言
+　...
+  #ifdef __cplusplus
+    }
+  #endif
+　// これだと、C++としてnewやclassなどは使えなくなるが、修正は簡単
+
+②C++としてコード修正する前提では、new, classなどの変数名をすべて別名に修正する必要あり
+
+③nvcc(CUDA)で通す修正は未実施
+
+■-fpermissive
+malloc, calloc系の型宣言抜け代入を許す
+変数初期化の型宣言抜け代入を許す
+
+■new
+変数名newは使えない。C++では予約語なので、変数名を修正
+または、new演算子を使わないのであれば、
+#define new _New_
+とかでもいける。
+
+■class
+変数名classは使えない。C++では予約語なので、変数名を修正
+または、class演算子を使わないのであれば、
+#define class _Class_
+とかでもいける。
+
+修正ファイルは、
+Makefile
+examples/cifar.c classifier.c detector.c rnn_vid.c
+include/darknet.h
+src/box.h convolutional_layer.h image.h list.h matrix.h rnn_layer.h
+
+以上でg++でもgccでもコンパイルが通り、簡単なテストはOK
+
+■参考：Darknet FAQに、下記の記述あり
+https://github.com/pjreddie/darknet/issues/717
+
+1、
+unknown type name ‘namespace’
+：
+CC=g++#gcc
+
+2、
+invalid conversion from ‘A’ to ‘B' [-fpermissive]
+：
+(B)A(..., ..., ...); for all arrays
+
+3、
+./src/cuda.c: In function ‘dim3 cuda_gridsize(size_t)’:
+./src/cuda.c:59:22: error: in C++98 ‘d’ must be initialized by constructor, not by ‘{...}’
+dim3 d = {x, y, 1};
+：
+dim3 d(x,y,1);//dim3 d = {x, y, 1};
+andA a;//= {0}; for all structs
+
+4、
+./src/image.c: In function ‘void draw_detections(image, detection*, int, float, char**, image**, int)’:
+./src/image.c:245:9: error: expected primary-expression before ‘int’
+int class = -1;
+：
+awesome class, new, ...etc
+
+5、
+./src/image.c:538:47: error: ‘IplImage’ has not been declared
+void show_image_cv(image p, const char *name, IplImage *disp)
+：
+in darknet.h
+changeTo
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+    #ifdef OPENCV
+    #include "opencv2/highgui/highgui_c.h"
+    #include "opencv2/imgproc/imgproc_c.h"
+    #include "opencv2/core/version.hpp"
+    #if CV_MAJOR_VERSION == 3
+    #include "opencv2/opencv.hpp"
+    #include "opencv2/videoio/videoio_c.h"
+    #include "opencv2/imgcodecs/imgcodecs_c.h"
+    #endif
+    #endif
+...
+...
+...
+#ifdef __cplusplus
+}
+#endif
+
+6、
+./src/demo.c: In function ‘void* fetch_in_thread(void*)’:
+./src/demo.c:144:62: error: ‘fill_image_from_stream’ was not declared in this scope
+int status = fill_image_from_stream(cap, buff[buff_index]);
+：
+in image.h
+changeTo
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+#ifdef OPENCV
+int fill_image_from_stream(CvCapture *cap, image im);
+image ipl_to_image(IplImage* src);
+void ipl_into_image(IplImage* src, image im);
+void flush_stream_buffer(CvCapture *cap, int n);
+void show_image_cv(image p, const char *name, IplImage *disp);
+#endif
+...
+...
+...
+#ifdef __cplusplus
+}
+#endif
+
+my g++version is 4.8.4, is it too low? but many course says that donot use cuda with high level g++. It's annoying...
+
+warning list is annoying too

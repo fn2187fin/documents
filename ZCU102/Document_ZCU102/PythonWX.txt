@@ -1,0 +1,14 @@
+【★PyQt】
+簡単だが、Pythonのthreadingと相性悪く、threading.Lock()が取れないので使えない
+使用はあきらめ　NG
+
+【★WX】
+インストール
+# pip install wx
+ビルドでNG
+
+# apt-cache search python-wxgtk
+# apt-get install python-wxgtk2.8
+インストールOK
+簡単だが、Pythonのthreadingと相性悪く、threading.Lock()が取れないので使えない
+QyQtと同様なNG

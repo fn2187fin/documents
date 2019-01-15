@@ -1,0 +1,298 @@
+﻿[■DarknetをDE0Nanoへ移植は成功]
+x86でもARMでも、LinuxでもWindowsでも走るDarknet
+
+[■ARMで処理速度を測る]
+yoloを動かすがすごく遅い
+profile仕掛けると、gemm_nnがほとんどの処理と判明
+gemm_nnをFPGAで試すと
+▼メモリアクセスがとても遅い
+▼積和がpipelineにならず遅い
+tiny-yoloでも移植は難しい
+
+[■im2colを調べてメモリアクセスを考える]
+gemm_nnはim2colで変換された行列を掛け算する処理
+入力行列は、M N K の引数で大きさ情報を渡される
+M : 重み行列の行サイズ
+N : 画像行列の列サイズ
+K : 重み行列の列サイズ＝画像行列の行サイズ
+
+im2colによって、入力画像と重み行列は2次元化されてgemm_nnで積和演算される
+
+・重み行列
+     K=(kxkxC)
+ +-------
+ |
+M|
+ |
+
+・入力画像行列
+     N=(wxhxb)
+ +-------
+ |
+K|
+ |
+
+・出力画像行列
+     N
+ +-------
+ |
+M|
+ |
+
+ここで、
+k : カーネルサイズ
+C : 入力画像のチャネル数
+w : 入力画像の幅サイズ(hは高さ)
+b : ミニバッチサイズ
+
+関数仕様　gemm_nn(M,N,K,A, B, C)
+出力画像C　＝　重み行列A　ｘ　入力画像行列B
+
+gemm_nnの演算速度はメモリアクセスに律速されているようなので、
+M,N,Kの値を小さくし、メモリ量を削減するネットワーク構成を考える必要性大
+
+[■BinaryWeightなどのサンプル]
+BinaryWeightなネットワーク構造では、積和演算を総計演算に置き換えることが狙い
+DarknetやchainerなどでもBinaryWeightのサンプルがある
+これらは、重みを-1.0/+1.0とL1ノルムに置き換える方法なので、メモリ量は減らない
+Ci = αΣWixXi
+Ci : 演算結果
+α : L1ノルム
+Wi : -1.0/+1.0に置き換えた重みの正負
+Xi : 画像行列
+
+メモリ量が減らないし、read-modify-writeには変わりがないので、ARM上の演算性能には効果が薄い
+メモリ量を減らすのならば、1つのWiを0x1/0x0に置き換えて32bitで32の重みを表現する必要がある
+
+[■NiN(Network In Network/ Micro Network)と呼ばれるものを考える]
+正解率が高い割にはネットワークが小さい例としてNiNを考える
+NiNの解説では、活性化関数を1x1のconvで学習することを狙っている
+Maxoutなどの非線形な活性化関数そのものも学習の対象にするらしい
+学習データとしてCifar10(state of the art:95%)を試す
+
+ARMのメモリ速度を測り、これを参考にネットワークを設計すると、
+メモリ量を1/1000にすればリアルタイム的な動きになるかもしれないと
+
+1/1000が目標で、1/100が妥協点
+
+[■Cifar10について]
+画像サイズは32x32のカラー
+50000の試験データ
+10000のテストデータ
+10クラス
+　airplane  
+　automobile
+　bird      
+　cat       
+　deer      
+　dog       
+　frog      
+　horse     
+　ship      
+　truck     
+上記でのコンテストデータでstate of the artで95%程度
+
+[■YOLOのWebページでCifar10を試す]
+DarknetのWebでCifar10の実行環境が示されているのでこれに従ってみる
+ネットワークはcifar_small.cfgを使う↓
+
+layer     filters    size              input                output
+    0 conv     32  3 x 3 / 1    28 x  28 x   3   ->    28 x  28 x  32
+    1 max          2 x 2 / 2    28 x  28 x  32   ->    14 x  14 x  32
+    2 conv     64  3 x 3 / 1    14 x  14 x  32   ->    14 x  14 x  64
+    3 max          2 x 2 / 2    14 x  14 x  64   ->     7 x   7 x  64
+    4 conv    128  3 x 3 / 1     7 x   7 x  64   ->     7 x   7 x 128
+    5 conv     10  1 x 1 / 1     7 x   7 x 128   ->     7 x   7 x  10
+    6 avg                        7 x   7 x  10   ->    10
+    7 softmax                                          10
+    8 cost                                             10
+
+32x32を28x28に切り取っているらしい
+28x28->14x14->7x7->10と画像サイズは変化する
+最終段は1x1のカーネル形状だな
+
+結果：15000epoch程度で70%程度のmAPとなる
+
+[■小ささを追求すると]
+NiNの形で小型化を試す
+NiNを1つでネットワークを構成してみる
+pooling処理は重みを使わないので多用してみる
+
+layer     filters    size              input                output
+    0 conv     32  3 x 3 / 1    32 x  32 x   3   ->    32 x  32 x  32
+    1 max          3 x 3 / 3    32 x  32 x  32   ->    11 x  11 x  32
+    2 conv     32  1 x 1 / 1    11 x  11 x  32   ->    11 x  11 x  32
+    3 conv     32  1 x 1 / 1    11 x  11 x  32   ->    11 x  11 x  32
+    4 max          3 x 3 / 3    11 x  11 x  32   ->     4 x   4 x  32
+    5 conv     10  1 x 1 / 1     4 x   4 x  32   ->     4 x   4 x  10
+    6 avg                        4 x   4 x  10   ->    10
+    7 softmax                                          10
+    8 cost                                             10
+
+convは全て画像サイズを変えない
+max_poolingで画像サイズを縮小
+1層3x3カーネルと3層1x1カーネルの構造
+結果：5000epochで正解率は45%程度
+結果：15000epochで正解率は48%程度
+
+[■学習すべき問題を簡単にしてみる]
+↑のネットワークを、クラス3つに限定した問題へ適用してみる
+最終段は3チャネル
+
+layer     filters    size              input                output
+    0 conv     32  3 x 3 / 1    32 x  32 x   3   ->    32 x  32 x  32
+    1 max          3 x 3 / 3    32 x  32 x  32   ->    11 x  11 x  32
+    2 conv     32  1 x 1 / 1    11 x  11 x  32   ->    11 x  11 x  32
+    3 conv     32  1 x 1 / 1    11 x  11 x  32   ->    11 x  11 x  32
+    4 max          3 x 3 / 3    11 x  11 x  32   ->     4 x   4 x  32
+    5 conv      3  1 x 1 / 1     4 x   4 x  32   ->     4 x   4 x   3
+    6 avg                        4 x   4 x   3   ->     3
+    7 softmax                                           3
+    8 cost                                              3
+3クラス
+　automobile
+　truck
+　background
+automobileとtruck以外のpngは全部backgroundと名前を変換
+学習すべきデータの総量は変わらず
+
+つまり車だけを見つける問題(top2)として正解率を求める
+
+結果：5000epochで87%程度のmAPとなった
+結果：15000epochで88.5%程度のmAPとなった
+
+[■簡単な問題ではなぜ正解率が高いのか]
+問題の難しさの意味は、
+10000データを10分類するか3分類するか
+
+もし1分類するのならば、答えは1つしかなく必ず正解になるから分類数が少ないほど簡単な問題ってこと
+
+10000データを5000と5000に2分類するならテキトーに答えても半分当たる
+10000データを9999と1に2分類するならば、2分類といえども問題は難しい
+テキトーに答えても1/10000の確立でしか当たらない
+
+今回の問題は10000データを1000(automobile)と1000(truck)と8000(background)の3つに分類する問題
+テキトーに10000データから1データを引くと、
+　automobileは1/10、10%
+　truckは1/10、　　 10%
+　backgroundは8/10、80%
+で現れるわけだから、1データを引いて中身を見ずにautomobileと答えると10%の確率で当たる
+同様にtruckと答えると10%で当たり、backgroundと答えると8割方当たる
+
+学習とは、
+10000データから1データを引いて、中身を見て解析しautomobileと答えると100%の確率で当たり、
+同様にtruckと答えると100%で当たり、backgroundと答えると100%当たる
+というように、正解の確率をサイコロ回答に比べて高めていくこと相当する
+
+問題の難易度は10000のうち正解がいくつあるのか？になる
+サイコロ回答での不正解率が高いほど問題は難しい
+
+10分類問題に10回のサイコロ回答をして、全部当たる確率は、
+1/10 x 1/10 x 1/10 x 1/10 x 1/10 x 1/10 x 1/10 x 1/10 x 1/10 x 1/10 = 1/10^10
+で、とんでもなく小さい
+
+3分類問題に3回のサイコロ回答して、全部当たる確率は、
+1/10 x 1/10 x 8/10 = 8/10^3
+である、これは1000回やったら8回は全問正解できるレベルで10分類とは桁違いに簡単である
+
+また、この問題の場合、backgroundな画像数を減らせば問題は難しくなる
+backgroundを1000データにした場合、3回のサイコロ回答では、
+1/10 x 1/10 x 1/10 = 1/10^3
+とサイコロ回答が当たる確率が下がってしまう
+
+backgroundなデータを増やせば問題は簡単になるとも限らない
+backgroundを80000データにした場合、3回のサイコロ回答では、
+1/90 x 1/90 x 8/9 = 8/90*90*9 = 8/72900 ≒ 1/10^4
+とサイコロ回答が当たる確率が下がってしまう
+
+引いたものを戻してからまた引くとか条件は少々違うかもしれないが、概念はこんなところかな:0)
+
+[■実用的なFPGA-DNNとして]
+NiNでの3クラス分類問題は正解率85%とはいえ、
+3x3カーネルconvで特徴量表現
+1x1カーネルconvで活性化関数(3層)
+な構造なので、これ以上は小さくならない気がする
+つまり最小限の小さなメモリ量で演算している
+
+さらに小さなNiNとして1層3x3+2層1x1が考えられ、
+85%以下の正解率を許容する問題では有効かもしれない
+
+[■星取表で分析が必要]
+
+[■cifar_minin.cfg]
+3クラス問題用NiN構成
+1層3x3カーネル+3層1x1カーネル
+2層max_pooling
+
+[net]
+batch=128
+subdivisions=1
+height=32
+width=32
+channels=3
+max_crop=32
+min_crop=32
+
+hue=.1
+saturation=.75
+exposure=.75
+
+learning_rate=0.1
+policy=poly
+power=4
+max_batches = 5000
+momentum=0.9
+decay=0.0005
+#decay =0.002
+
+# 3x3 32x32->32x32 ->max 1/2 -> 11x11
+[convolutional]
+#batch_normalize=1
+filters=32
+size=3
+stride=1
+pad=1
+activation=leaky
+[max]
+size=3
+stride=3
+
+# 1x1 11x11 -> 11x11
+[convolutional]
+#batch_normalize=1
+filters=32
+size=1
+stride=1
+pad=0
+activation=leaky
+
+# 1x1 11x11 -> 11x11 -> max 1/2 4x4
+[convolutional]
+#batch_normalize=1
+filters=32
+size=1
+stride=1
+pad=0
+activation=leaky
+[max]
+size=3
+stride=3
+
+# 1x1 4x4 -> 4x4
+[convolutional]
+batch_normalize=1
+filters=3
+size=1
+stride=1
+pad=0
+activation=leaky
+
+[avgpool]
+#size=6
+
+[softmax]
+groups=1
+
+[cost]
+type=sse
+

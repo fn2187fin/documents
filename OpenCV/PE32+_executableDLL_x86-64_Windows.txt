@@ -1,0 +1,26 @@
+﻿PE32+
+Windows7
+x86-64
+gcc/g++
+
+# cat cmake_buildx.exe
+
+#! /usr/bin/sh
+cmake -G "MinGW Makefiles" \
+-DCMAKE_C_COMPILER=gcc \
+-DCMAKE_CXX_COMPILER=g++ \
+-DCMAKE_BUILD_TYPE=RELEASE \
+-DCMAKE_INSTALL_PREFIX=/c/Users/kenji/shared/cv/opencv/buildx/installed \
+-DBUILD_NEW_PYTHON_SUPPORT=OFF \
+-DBUILD_TESTS=OFF \
+-DBUILD_PERF_TESTS=OFF \
+-DBUILD_GPU=OFF \
+-DBUILD_OPENCL=OFF \
+../sources/
+
+# mkdir buildx
+# cd buildx
+# ../cmake_buildx.exe
+# ../cmake_buildx.exe
+# mingw32-make
+

@@ -1,0 +1,80 @@
+Intel FPGA SDK for OpenCL + Windows
+
+Windows上でホスト、デバイスのコンパイルを試す
+
+■OpenCL開発環境 DE10-Nanoの手順書からインストール
+以下、terasic DE10NanoのBSP_OpenCL/DE10_Nano_OpenCL.pdf手順に従いWindows版をインストール
+バージョンを17.1で統一
+
+①Install Intel Quartus Prime and OpenCL SDK
+②Install Intel SoC EDS
+③Install DE10-Nano OpenCL Board Support Package (BSP)
+
+□Install Intel Quartus Prime and OpenCL SDK
+  ２つの選択肢があるがstandard17.1を指定するとなぜかAが自動選択されるので
+  A. Intel FPGA SDK for OpenCL (includes CodeBuilder, Quartus Prime software and devices)
+  B. Intel FPGA SDK for OpenCL (includes Quartus Prime Pro Edition software and devices)
+Windows版Standard17.1　ダウンロード 20G AOCL-17.1.0.590-windows.tarで展開すると出てくるセットアッパーを起動
+・components/AOCLSetup-17.1.0.590-windows.exe
+　起動するだけで何も聞かれず完了
+・components/QuartusSetup-17.1.0.590-windows.exe
+　起動するとサポートするデバイスを聞かれるので、CycloneVのみ選択
+  Quartus-Primeを起動するとライセンスファイルのありかを聞かれるが、C:License.data指定
+
+□Intel SoC Embedded Development Suite(EDS)入れる
+Windows版Standard 17.1 ダウンロード,5G
+http://dl.altera.com/soceds
+*.exeファイルインストーラで何事もなく完了
+DS-5, FTD, BlasterIIウィザードが続けて立ち上がるのでインストール、インストールするか？たくさん出るが全部OK
+DS-5 Release NotesがIEに表示され完了
+
+D:\intelFPGA\17.1\hld\board\terasic\以下にN:\win_shared\DE10_NANO\BSP_OpenCL\de10_nanoをコピー
+
+□PATH変数
+・インストールによりALTERAOCLSDKROOT変数はインストールしたディレクトリに変更される
+・AOCL_BOARD_PACKAGE_ROOT変数は中途半端に更新される
+・PATH変数は更新されない
+
+□ボードテスト
+Embedded_Command_Shell.batを起動
+$ cd /cygdrive/d/intelFPGA/17.1/hld/board/terasic/de10nano/example/boardtest
+$ make
+エラー！
+前田くんからレポートあった通り、aocl link-config --armで出てくるリンクオプションは異常
+
+15.1の時代のEmbedded_Command_Shell.batでは、
+$ aocl compile-config --arm
+-ID:/altera/15.1/hld/host/include
+$ aocl link-config --arm
+-LD:\altera\15.1\hld\board\terasic\de10_nano\arm32\lib -LD:/altera/15.1/hld/host/arm32/lib 
+-Wl,--no-as-needed -lalteracl  -lalterammdpcie -lelf -lrt -ldl -lstdc++
+
+17.1では、
+$ aocl compile-config --arm
+-ID:/intelFPGA/17.1/hld/host/include
+$ aocl link-config --arm
+/libpath:D:/intelFPGA/17.1/hld/host/windows64/lib OpenCL.lib
+なんだこれ？
+
+17.1で無償ライセンスになったら、ダメダメバージョンなのねぇ～;-P)
+しかも、、、boadtestを試すと、
+aoc: Running OpenCL parser....
+d:/intelFPGA/17.1/hld/board/terasic/de10_nano/examples/boardtest/device/boardtes
+t.cl:53:14: error: Channel support is not enabled
+channel uint kch;
+             ^
+d:/intelFPGA/17.1/hld/board/terasic/de10_nano/examples/boardtest/device/boardtes
+t.cl:58:3: error: function 'write_channel_altera' is not supported by the Intel(
+R) FPGA SDK for OpenCL(TM), and no user definition is provided
+  write_channel_altera(kch, arg);
+...
+おわぁ～altera_channelが未サポートだってぇ～
+Proバージョンとか必要なのかもね
+
+□18.0へ移行すればなんとかなるのかと思い、、、
+ダウンロード&インストール！ほいっと！
+aocl link-config
+... 17.1と変わらずNGな答えを返しますね、残念:-<
+WindowsでHostコンパイル環境は断念
+でも、deviceはコンパイルできますが
+

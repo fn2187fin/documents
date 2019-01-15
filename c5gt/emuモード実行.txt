@@ -1,0 +1,53 @@
+emuモードを試す
+
+・Intel FPGA SDK for OpenCL 18.0は/opt/以下にインストール
+
+・BSPは~/20076433/BSPに置くとする
+
+・DE10-NanoのBSPはemuモードを未サポートらしく、動作しないので、
+  emuモードをサポートするBSPとしてAltera Wiki→Category OpenCLのc5gt(beta)を使う
+  C5gt_bsp_linux_beta_wo_cvp_v17.0.tar.gzを~/20076433/BSP/以下に展開
+
+・ホストプログラムは、emuモードとFPGAモードで同じ様にコンパイルすればよい
+  emuモードで動くかFPGAモードで動くかは、環境変数で切り換わる
+  スクリプトを3つ用意
+  src.opencl : 全てのOpenCL環境変数を設定
+  embed.sh   : src.openclをソースして、embedded_command_shell.shに入る
+  oclemu     : BOARD,AOCL_BOARD_PACKAGE_ROOT,CL_CONTEXT_EMULATOR_DEVICE_ALTERAをc5gtへ変更
+  oclfpga    : BOARD,AOCL_BOARD_PACKAGE_ROOT,CL_CONTEXT_EMULATOR_DEVICE_ALTERAをde10_nanoへ変更
+
+  $ embed.sh
+
+  $ . oclemu
+    これでemuモード
+    BOARDはc5gt, AOCL_BOARD_PACKAGE_ROOTは~/20076433/BSP/c5gt
+
+  $ . oclfpga
+    これでFPGAモード
+    BOARDはde10_nano, AOCL_BOARD_PACKAGE_ROOTは~/20076433/BSP/de10_nano
+  $ aoc -list-boards
+    Board list:
+      de10_nano_sharedonly
+         Board Package: /home/ogura/20076433/BSP/de10_nano
+
+・aocxはemuモードとFPGAモードで別物を用意
+  emuモードのaocx
+     aoc -march=emulator -o hoge.aocx hoge.cl
+  FPGAモードのaocx
+     aoc -o hoge.aocx hoge.cl
+
+・Makefileの例
+  %.aocx:%.cl
+        aoc -march=emulator -g -v -report $^ -o $@
+  hoge: hoge.cpp
+        g++ $^ $(shell aocl compile-config) $(shell aocl link-config) -o $@ -Ofast
+
+・emuモード実行
+  $ embed.sh
+  $ . oclemu
+  $ make hoge
+  $ ./hoge
+
+以上
+
+

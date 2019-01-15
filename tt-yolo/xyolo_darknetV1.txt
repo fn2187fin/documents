@@ -1,0 +1,158 @@
+xyolo.test.cfgを試す
+
+tiny-yolo-voc.cfgを小型化したが、描画性能はWin7@CPUで20FPSとなり、ARMなどへ移植すると数FPSだろう
+移植する気がおきない;->
+
+FPGAでは2値化が必須なのだろうか、まずはdarknetでXNORを試す
+darknetのxnorオプションはv2ではまともにメンテナンスされていない様子
+  (XNOR-netなる会社が発生したことと関係がありそうだが)
+darknetのv1を下記より取得して試す
+
+https://gitlab.lif.univ-mrs.fr/benoit.favre/darknet-rest-server
+tag 8a6ba2fff3ee1c14bca0aa0e0a909aba7057cc94を抜き出してgitに上た↓
+https://github.com/k5iogura/darknet-rest-server-8a6ba2fff3ee1c14bca0aa0e0a909aba7057cc94
+
+■ファーストトライ
+xyolo.test.cfg
+   448x448 ⇒ 7x7x30
+   1/2  1/2  1/2  1/2  1/2  1/2  1/1   FC
+16  32   64  128  256  512 1024  256 1470
+448x448画像から(20class+(4coords+1conf)x2num =)30channels x 7width x 7height(=1470)のfeature-mapで20classを検出する
+448x448を(2^6 =)64x64のグリッドで検出(448=64x7)
+xnor=1が[convolutional]に指定されている
+
+cfg/xyolo.test.cfg、yolo.cなどを修正してまずはimdb_bodyで学習
+
+$ ./darknet yolo train cfg/xyolo.test.cfg -i 1 >job_xyolo_imdb_body.log
+stepsでの学習係数では発散
+学習のpolcy=poly、learning_rate=0.003からスタートすると順調にロスが減少開始
+↑AI2をmake時にdefineしていないバージョン
+
+※学習パラメータ
++learning_rate=0.0030          
++policy=poly                   
+ max_batches = 40000           
+
+  [学習結果]
+./darknet yolo recall cfg/xyolo.test.cfg backup/xyolo_final.weights
+
+※12000epochでの中間評価と40000epochのfinal評価では、カメラ画像の認識状態が明らかに向上した
+
+MinimalLoss: 38716 epoch 1.85280 loss
+LastStage  : 39998 epoch 2.08960 loss
+
+  [学習評価マトリクス]
+  学習DS    　評価DS      　IOU  Recall
+  imdb_body   imdb         0.1%      0%
+  imdb_body   wiki        0.01%      0%
+  imdb_body   VOC2007        0%      0%
+  imdb_body   VOC2012     % %
+classes=20でのRecall評価に問題あるのか？
+
+  [処理速度]
+　1.6FPS@Win7-CPU
+
+  [カメラ画像の主観的評価]
+正面顔と横顔を正確に捉えて、完全な後姿、体が横向きに強い
+両手をあげたりして、いろいろなポーズにも強い
+距離2m以下では強い
+手だけでも認識する
+
+  [binary方法]
+特徴マップは、+1/-1に2値化
+ウェイトは、+-平均値で2値化
+
+■セカンドトライ
+xyolo.test.cfg修正し問題を簡単に
+   448x448 ⇒ 7x7x343
+   1/2  1/2  1/2  1/2  1/2  1/2  1/1   FC
+16  32   64  128  256  512 1024 128  343
+448x448画像から(2class+(4coords+1conf)x1num =)7channels x 7width x 7height(=343)のfeature-mapで2classを検出する
+448x448を(2^6 =)64x64のグリッドで検出(448=64x7)
+imdb_body 5000枚、xnor=1で1000epochまで学習
+
+検出率
+./darknet yolo recall cfg/xyolo.test.cfg backup/xyolo_1000.weights
+  [学習評価マトリクス]
+  学習jkjkjDS    　評価DS      　IOU  Recall
+  imdb_body   imdb        68%     90%
+  imdb_body   wiki        68%     94%
+
+処理速度
+　15FPS@CentOS+GPU
+
+カメラ画像
+　認識はするが、認識不安定、FPが多い、IOUのミスが目立つ
+
+■Xnor演算するバイナリネットワーク
+Darknetv2,v3のxnorオプションはウェイトと特徴マップを2値化しているが、演算はgemmでfloat
+Darknetv1ではAI2なるプロジェクトが走っていて、中途半端だがxnor演算のコードがある
+
+forward_xnor_layerを使用した学習
+
+※AI2とはなにものか？AI2バージョンではなにがおきるのか？
+AI2:Allen Institute and Artification Intelligence　らしくXNOR-netはAI2からspin-outした会社らしい
+
+※[convolutional]にxnorオプションを入れると、↓の条件でAI2が動いたりする
+if(l.xnor && (l.c%32 != 0 || !AI2))
+　binary_filters...               <=フィルターとイメージのバイナリー化
+if (l.xnor && l.c%32 == 0 && AI2)
+  forward_xnor_layer(l, state)..　<=AI2の関数群が入っている
+
+①xnor指定で、AI2を使わない時、フィルターとイメージはバイナリー化されて通常のgemm処理される
+　バイナリー化された演算になっているので、認識精度などは確認できそう
+②xnor指定で、AI2を使う時、フィルターとイメージはバイナリー化されて通常のgemm処理されずAI2の関数処理で処理される
+　(ただしフィルターは32の倍数のみ)
+
+！forward_xnor_layerバグ
+ai2_make_bin_conv_layer: l.outputサイズが間違い 入力チャネル数→出力チャネル数に修正
+ai2_free_bin_conv_layer: layer->input, layer->outputをフリーするとsegmentation faultなのでフリー止める(正しいのか？不明)
+これらのAI2関連の関数は
+ CPU動作のみ、stride==1のみ,channelsは32倍数のみサポート
+seg..fault多発
+
+※forward_xnor_layerを使用した推定
+
+■AI2について
+
+git checkout -b 8a6ba2fff3ee1c14bca0aa0e0a909aba7057cc94
+
+※branchは↑で、他のbranchではxnor_layer.[ch]やbinary_convolutional_layer.[ch]などが消えていたり、
+#define AI2だけが残っているなど不明な状態になっているらしい
+
+Makefileでcommon=-DAI2
+↑これでAI2の拡張が入る
+
+各*_demo.c内timersub
+//double getElapsedTime(Timer *timer); // Returns the time in ms
+//void start_timer(Timer *timer);
+//void stop_timer(Timer *timer);
+↑使われていない関数定義
+
+xnor_layer.o binary_convolution.o
+↑Makefileでリンク不足になる
+-std=gnu11が必要で、binary_convolution.cがコンパイルできる
+
+コンパイル完
+
+https://github.com/k5iogura/darknet_sdl_xnor
+↑集約
+
+■Darknetv3でttt4.cfgをxnor化？
+ttt4.cfgをxnor=1で学習
+darknetのxnor実装は、テスト的な内容
+・ウェイトをー平均／＋平均に2値変換
+・特徴マップを-1/+1に2値変換
+・2値変換した行列をgemmでかけ算
+するので、xnor演算にはなっていないし、ウェイトも減らない
+バックワードでも同様に2値変換してgemmで計算している
+
+※デバッグ
+seg..faultが至る所で発生するので悩んだが、、、random=0とすることで回避できたようだ
+random=1では、resize_network()が走るが、関数内でnet.inputなどの主要な入出力領域をfree, calloc, reallocしている
+forward_convolutional_layerではnet.inputに触っているが、なぜかこれがseg..faultの間接的な原因になっている様子
+resize_network()の呼び出しを止めると、seg..faultが回避できた
+
+で、resize_network()ではランダムに選んだ入力画像サイズに合わせて、ネットワークサイズを変形しながら学習しているらしい、、、
+、、すっげぇコトやっとるなぁ 画像やネットワークサイズを変更したとき、ウェイトはどうするんだろうか？
+

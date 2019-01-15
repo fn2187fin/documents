@@ -1,0 +1,143 @@
+NIN3_128_DET1x4での認識 その2
+
+学習データセットでは、99％近いPrecisionが得られても、カメラ画像を入力すると、、、まるで認識がヘンテコ;-<
+
+[■収集した画像データセットの主観的分析]
+imdbやwiki,FDDBなど
+・写真データは、キレイである(まぁ写真のプロが撮っている)
+・カメラ固定であり、露出も固定、ブレることはない
+・前景と背景がハッキリ分かれているポートレート的な写真が多い
+  この特徴を顔特徴としていないか
+・複数の人物が写り込んでいるが、ターゲットの人は前傾、その他の人は背景
+
+一方、実使用でのカメラ動画は、
+・キレイとは限らない
+・露出も変化し、ブレる
+・逆光で前景と背景のコントラストが反転することも多い
+・顔と同じ距離に椅子や洋服など身の回り品があり、前景と区別が付かない
+
+仮定だが、
+・NNは前景と背景の区別ができる
+・特徴ある物体が大きく写れば確率が上がる
+
+と考えれば、
+・前景と背景が分かれているという特徴を抽出し、それだけで顔の存在確率が上がる
+・人が居そうな場所の背景を見ると、それだけで顔の存在確率が上がる
+・ブラーのようなランダム画像に代表される未知の画像はそれだけで顔の存在確率が上がる
+　(ブラーは前景に見えている)
+以上の仮定が正しいとして新なデータセットを考える
+
+[■Flickr-API]
+これらの誤検出症状を学習で改善するには、
+・前景として、顔だけでなく、さまざまなモノが写っている画像
+・人が居そうな状況(前景や背景)でも、人が映っていない画像
+・より実際にありそうな画像
+  はいちーず！カシャ、、ではない普通な画像
+  ブラーのようなボヤけた画像
+
+これらを集めるためにFlickr-APIから、
+・人が居そうなキーワードで画像を収集する
+・YOLOで人がいない画像を探す
+キーワードとして、streets,office,crosswalkなどを指定すれば、多くの画像に人が映り込む
+街路、オフィス、交差点などは人が居そうな場所のキーワード
+それらの画像から人を含まないモノを探す
+
+また、forest, dark office, blurなどのキーワードにより、はいちーず！写真以外の画像を探す
+
+人以外の分類用データセットを使う
+・caltech101
+前景に人以外が写っている
+
+ネガ画像の収集キーワードと収集画像数
+1000  light shade
+2000 dark office
+2000 backlight
+1000  on the desk
+1000  garage
+1000  car window view
+1000  cabinet
+1000  special truck
+1000  traffic lights
+1000  window blinds
+2000 blur
+3000 construction
+2000 chair
+3000 corridor
+3000 crosswalk
+2000 desk office
+3000 office
+2000 elevator
+2000 forest
+1000 river
+3000 highway 
+2000 clothes
+2000 closet
+3000 streets
+2000 livingroom
+2000 stairs
+2000 sky
+約44,000枚収集
+$ wc -l `cat list3.txt`
+  13435 /home/20076433/20076433/DatasetScript/train_crop_wiki.txt
+   7133 /home/20076433/20076433/DatasetScript/101_ObjectCategories_nega.txt
+   2004 /home/20076433/20076433/DatasetScript/backlight_Idir/backlight_rep.txt
+     38 /home/20076433/20076433/DatasetScript/blind_office_Idir/blind_office_rep.txt
+   2052 /home/20076433/20076433/DatasetScript/blur_Idir/blur_rep.txt
+   1032 /home/20076433/20076433/DatasetScript/cabinet_Idir/cabinet_rep.txt
+    176 /home/20076433/20076433/DatasetScript/car_window_view_Idir/car_window_view_rep.txt
+   1402 /home/20076433/20076433/DatasetScript/chair_Idir/chair_rep.txt
+   1092 /home/20076433/20076433/DatasetScript/closet_Idir/closet_rep.txt
+   1013 /home/20076433/20076433/DatasetScript/clothes_Idir/clothes_rep.txt
+   2137 /home/20076433/20076433/DatasetScript/construction_Idir/construction_rep.txt
+   1559 /home/20076433/20076433/DatasetScript/corridor_Idir/corridor_rep.txt
+   1864 /home/20076433/20076433/DatasetScript/crosswalk_Idir/crosswalk_rep.txt
+    692 /home/20076433/20076433/DatasetScript/dark_office_Idir/dark_office_rep.txt
+   1155 /home/20076433/20076433/DatasetScript/desk_office_Idir/desk_office_rep.txt
+   1755 /home/20076433/20076433/DatasetScript/elevator_Idir/elevator_rep.txt
+   2088 /home/20076433/20076433/DatasetScript/forest_Idir/forest_rep.txt
+   1030 /home/20076433/20076433/DatasetScript/garage_Idir/garage_rep.txt
+   3638 /home/20076433/20076433/DatasetScript/highway_Idir/highway_rep.txt
+   9737 /home/20076433/20076433/DatasetScript/indoorCVPR_09.txt
+   2016 /home/20076433/20076433/DatasetScript/livingroom_Idir/livingroom_rep.txt
+   2516 /home/20076433/20076433/DatasetScript/office_Idir/office_rep.txt
+   1040 /home/20076433/20076433/DatasetScript/on_the_desk_Idir/on_the_desk_rep.txt
+   2112 /home/20076433/20076433/DatasetScript/sky_Idir/sky_rep.txt
+   2239 /home/20076433/20076433/DatasetScript/spatial_envelope_256x256_static_8outdoorcategories.txt
+    398 /home/20076433/20076433/DatasetScript/special_truck_Idir/special_truck_rep.txt
+   1282 /home/20076433/20076433/DatasetScript/stairs_Idir/stairs_rep.txt
+   1066 /home/20076433/20076433/DatasetScript/streets_Idir/streets_rep.txt
+   1016 /home/20076433/20076433/DatasetScript/traffic_lights_Idir/traffic_lights_rep.txt
+  29998 /home/20076433/20076433/DatasetScript/train_imdb_f01.txt
+   1008 /home/20076433/20076433/DatasetScript/window_blinds_Idir/window_blinds_rep.txt
+
+ポジは43,000枚で、imdb 30,000枚、wiki_crop 13,000千枚
+
+ポジネガ計 87,000枚のposi:nega=5:5
+
+[■学習とテスト結果]
+学習結果として、
+・マシーン数値は、
+train loss: 0.0259163168011 error: 7.68836429651
+valid loss: 0.026487917844 error: 7.83577441346
+test  loss: 0.0266554215548 error: 8.25320755242
+best test error: 0.0259092925577
+best valid loss: 0.0255022116233
+best test loss : 0.0259092925577
+90％強のAP
+
+・カメラ画像について
+主観的には、55%のスレッショルドで、
+ロバスト性あり
+モアレに弱いことがある
+推定位置は中心部に寄っていて、四隅で認識されることは少ない
+な印象
+
+[■PCA、ヒストグラム]
+
+データセットに分散が必要であるといわれるが、画像の分散とは、
+・画素値の分散であり本質的ではないかもしれない
+・カーネルサイズで分散を考えるとNNにも当てはまるかもしれない
+・ヒストグラムで学習画像とカメラ画像の相違を見るがコントラストは少し違うかも
+ただし分散などの従来の分析手法が本質的な画像認識に有効であれば、NNなど不要である
+
+しかし、カメラ画像と学習データセットの違いはつかみたい

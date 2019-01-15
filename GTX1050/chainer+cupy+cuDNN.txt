@@ -1,0 +1,195 @@
+GTX1050を導入したので、Windows7上でchainerのGPU実行を試す
+http://qiita.com/dsanno/items/a68d5aaae0a542c0f388
+
+python2.7+chainer1.24.0+Cmderで以下実施
+
+[■CUDA(v8.0)はnVIDIAからWindows7版をダウンロードしてインストール]
+VS-Community_2013が必要らしい
+サンプルなどはVS-Community_2013と相性などあってすべてが動作するワケではないらしい
+一部ビルドエラーなどがでる
+まぁエラーはほっといて次
+
+[■Cmderコンソールからのコンパイル用に環境変数を設定]
+
+.bashrcで、
+INCLUDEに、
+C:\ProgramData\NVIDIA Corporation\CUDA Samples\v8.0\common\inc
+
+LIBに、
+C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v8.0\lib\x64
+
+PATHに、
+/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v8.0/bin:
+/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v8.0/libnvvp:
+/c/Program Files (x86)/NVIDIA Corporation/PhysX/Common:
+
+以上を追加して確認↓
+
+$ which nvcc
+/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v8.0/bin/nvcc
+
+$ which cl
+/c/Program Files (x86)/Microsoft Visual Studio 12.0/VC/bin/cl
+
+$ which gcc
+/c/tools/mingw64/bin/gcc
+
+[■chainerからcudaとcudnnのimport]
+chainerは1.24.0が入っている
+
+import chainer
+from chainer import cuda
+xp = cuda.cupy
+
+★↑がpython+CUDAの第一のチェックらしいが、cuda.cupyが見つからずエラー
+どうやらインストールのやり直しが必要らしいchainerの入れ直し
+
+$ pip install chainer==1.24.0
+pipはコンパイルからやり直すものらしく、CUDAを取り込んだchainerがインストールされるらしい
+バージョンを上げてインストールしたがreinstallしても同じ結果だろう
+(これが本当ならばcondaではCUDAが取り込めないことになる;-p)
+これでcuda.cupyの実行時エラーが消えた:-)
+
+★第2のチェック
+x = xp.asarray([[1, 2, 3], [4, 5, 6]], dtype=np.float32)
+y = cuda.elementwise('T x','T y','y = x + 1;','sample1_fwd',)(x)
+
+...Anaconda2\lib\site-packages\chainer\cuda.py:92: UserWarning: cuDNN is not enabled.
+Please reinstall chainer after you install cudnn
+(see https://github.com/pfnet/chainer#installation).
+  'cuDNN is not enabled.\n'
+って、cuDNNをインストールせよエラー
+elementwiseメンバーはcuDNNのメンバーなのね;-<
+
+第1チェックはcupy、第2チェックはcuDNNらしい
+pipでもcondaでもcudnnらしきパッケージがインストールできる
+pycudnnとかcudnnとか、どっち？
+
+$ conda install cudnn
+インストールできたけど、これだとエラーが消えない
+$ conda remove cudnn
+消去、次pip
+
+$ pip install pycudnn
+コンパイルエラーがでる、、v9.0のVSを決め打ちで読んでるみたい、インストールできない
+
+ググる
+http://qiita.com/okuta/items/f985b9da6de33a016a75
+↑ここをみると、cupy, cudnnの順でインストールchainerは最後にpipで入れないと、、、
+
+cuDNNはnVIDIAへの登録後にv6.0をダウンロード
+$ pip uninstall chainer==1.24.0
+$ pip install --no-cache -vvvv chainer==1.24.0
+--no-cacheしないと、chainerのリビルドが走らないので注意
+pipってビルドまでできるので便利:-)
+
+さらにchainer v2.xではcupyを分離したとかなんとかなんで、
+v2.xでは違う方法でインストールする必要があるんだろうな;-<
+
+これで第2チェックまでOK
+cuDNNが走るようになってるみたい
+
+[■chainerがGPUで走るのか]
+
+では、↓から古いchainer 1.24.0を取ってきてサンプルのmnistを試す(Source code(tar.gz)から取る)
+https://github.com/chainer/chainer/releases
+
+$ git clone https://github.com/chainer/chainer/releases/tag/v1.24.0
+★まずはCPUでやってみる
+
+$ python train_mnist.py
+GPU: -1
+# unit: 1000
+# Minibatch-size: 100
+# epoch: 20
+
+epoch       main/loss   validation/main/loss  main/accuracy  validation/main/accuracy  elapsed_time
+1           0.19185     0.0955385             0.942783       0.9702                    27.829
+2           0.0715953   0.0777184             0.977583       0.9759                    57.952
+3           0.0498991   0.0756265             0.98405        0.9781                    87.684
+4           0.0366804   0.0828758             0.98805        0.9769                    117.949
+5           0.029584    0.0869829             0.990467       0.9744                    148.533
+6           0.0241865   0.0928816             0.9922         0.9788                    179.696
+7           0.0214342   0.0698903             0.9931         0.9816                    210.909
+8           0.015781    0.0898589             0.994717       0.9794                    243.345
+9           0.0188196   0.0893281             0.993817       0.9808                    275.16
+10          0.0162365   0.0825444             0.994633       0.9798                    307.961
+11          0.0122347   0.102688              0.9962         0.9795                    340.285
+12          0.0131497   0.0914658             0.9959         0.9809                    373.821
+13          0.0110976   0.084793              0.99695        0.9812                    407.428
+14          0.0106589   0.0868332             0.9969         0.9824                    442.834
+15          0.0132105   0.0937944             0.9964         0.9808                    478.706
+16          0.00767708  0.0833874             0.997567       0.984                     513.635
+17          0.011412    0.104663              0.9965         0.9826                    549.879
+18          0.00921489  0.103628              0.99735        0.9835                    586.264
+19          0.00987172  0.113509              0.997233       0.9825                    628.641
+20          0.00994404  0.134663              0.997267       0.9779                    669.104
+19.xxx iters/sec.とか出てる
+
+★つづいてGPUで実行！-g 0
+$ python train_mnist.py -g 0
+GPU: 0
+# unit: 1000
+# Minibatch-size: 100
+# epoch: 20
+
+epoch       main/loss   validation/main/loss  main/accuracy  validation/main/accuracy  elapsed_time
+1           0.191993    0.0926302             0.941384       0.9716                    71.477
+2           0.0743618   0.0721563             0.976383       0.9767                    76.569
+3           0.0478521   0.0755162             0.984765       0.9775                    80.879
+4           0.0378      0.0783204             0.987615       0.9776                    85.168
+5           0.0266384   0.0795627             0.991348       0.9779                    89.455
+6           0.0275015   0.0671731             0.990865       0.9808                    93.735
+7           0.0207714   0.0705378             0.993282       0.9817                    98.005
+8           0.0189896   0.0678276             0.993766       0.9822                    102.276
+9           0.016285    0.10674               0.994765       0.9766                    106.615
+10          0.0143387   0.0974405             0.995499       0.9781                    110.871
+11          0.0139823   0.0783499             0.995482       0.9834                    115.194
+12          0.0106431   0.080975              0.996849       0.9808                    119.558
+13          0.0167183   0.0851016             0.994966       0.9827                    123.911
+14          0.0090538   0.1018                0.996799       0.9795                    128.294
+15          0.0114306   0.102525              0.996265       0.9792                    132.658
+16          0.0110991   0.115359              0.996499       0.981                     137.037
+17          0.00987249  0.0960405             0.997049       0.9818                    141.417
+18          0.00885883  0.106889              0.997332       0.9806                    145.888
+19          0.00950087  0.0953307             0.997316       0.983                     150.233
+20          0.00597486  0.135243              0.998016       0.9798                    154.496
+140.xxx iters/sec.とか出てる
+出だしがやたら遅いが?-g 0 オプション付きが圧倒的に速くGPU/CPU=7倍速
+GPUが機能してると確認できた:=)
+
+chainer+cuda+cudnn+Cmderは完了
+
+★番外編　GTX1080ではっと
+240.xxx iters/secと出てるな
+
+
+[■python-2.7.12+chainer.2.0.2+cupy+cudnn]
+インストール順序が大切
+
+①CUDA(v8.0)はnVIDIAからWindows7版をダウンロードしてインストールは済
+②cuDNNはnVIDIAからDLしてインストール(登録要)は済
+として以下実施
+
+□condaでpytyhon-2.7.12+chainer.2.0.2+cupy+cudnnな環境を作る
+
+$ conda create -n py27_ch202
+$ conda info -e
+# conda environments:
+#
+py27_ch202               C:\Users\20076433\AppData\Local\Continuum\Anaconda2\envs\py27_ch202
+root                  *  C:\Users\20076433\AppData\Local\Continuum\Anaconda2
+$ source activate py27_ch202
+
+
+□cupyをインストール
+$ pip install cupy
+
+    Microsoft (R) C/C++ Optimizing Compiler Version 15.00.30729.01 for x64
+    Copyright (C) Microsoft Corporation.  All rights reserved.
+
+    tmpxft_000009b8_00000000-1.cpp
+    nvcc fatal   : Host compiler targets unsupported OS.
+    error: command 'C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v8.0\\bin/nvcc.exe' failed with exit status 1
+エラー！;-<
+ペンディングだぁ

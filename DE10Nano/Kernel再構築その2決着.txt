@@ -1,0 +1,127 @@
+■terasicからはlinux_opencl_BSPで使われているlinux sourceが提供されないので探す
+探したのはコレ↓
+DE10Nano:Linux socfpga 3.10.31-ltsi-05172-g28bac3e #49 SMP Fri Jan 20 10:36:10 CST 2017 armv7l GNU/Linux
+linux-socfpga: https://github.com/altera-opensource/linux-socfpga.git
+linux-yocto  : https://git.yoctoproject.org/linux-yocto
+altcrauer    : https://github.com/altcrauer/linux.git
+
+正しく動くものはみつからなかったので、追加でググ(github.com linux-socfpga opencl:-)って↓
+https://github.com/thinkoco/linux-socfpga　①正しく動いた
+https://github.com/sgstreet/linux-socfpga  ②試していない;-P
+
+↓ここを頼りにして、
+https://github.com/thinkoco/c5soc_opencl　 ①のガイド
+
+やっと正しく動く、linux-kernel+dtb+aclsoc_drv.ko ができた
+googleセンセイありがと:-)
+
+■①の動かし方
+Host-Linux上のDS-5 shell環境下で、
+
+$ git clone https://github.com/thinkoco/linux-socfpga.git
+$ cd linux-socfpga
+$ git checkout -b socfpga-opencl_3.18 origin/socfpga-3.18
+$ cp config_opencl_de10_nano .config
+
+$ export ARCH=arm
+$ export CROSS_COMPILE=arm-linux-gnueabihf-
+$ export LOADADDR=0x8000
+
+$ make zImage
+// for x2go only mode.If you just need x2go only,
+// you should remove the video ip core description in the dts files.
+$ make socfpga_cyclone5_de10_nano_x2go.dtb
+
+aclsoc_drv.koのremakeは、de10nano BSP内のdriver/以下で
+$ vi version.h                    //16.0を16.1へ変更
+$ make KDIR=<path/linux-socfpga>
+
+３つのファイルが出来上がる
+zImage, socfpga_cyclone5_de10_nano_x2go.dtb, aclsoc_drv.koをDE10Nanoへ転送してから、DE10Nano上で、
+
+$ mount /dev/mmcblk0p1 /mnt
+$ cp zImage /mnt
+$ cp socfpga_cyclone5_de10_nano_x2go.dtb /mnt/socfpga.dtb
+$ cp aclsoc_drv.ko /home/root/opencl_arm32_rte/board/c5soc/driver
+$ sync
+$ sync
+$ reboot
+
+//reboot後に
+$ . ./init_opencl.sh
+$ lsmod
+
+これでOpenCLの起動環境ができているので、アプリを動かせる:-)
+
+■darknetを動かすと、
+
+$ ./darknet detect cfg/ttt5_224_160.cfg data/ttt/ttt5_224_160_final.weights
+ data/dog.jpg
+classes= 20
+train  = /home/20076433/20076433/dataset/train.txt
+valid  = /home/20076433/Darknet/darknet_sdl/2012.txt
+#valid  = /home/20076433/Darknet/darknet_sdl/2007.txt
+#valid  = /home/20076433/Darknet/darknet_sdl/imdb_f01.txt
+#valid  = /home/20076433/Darknet/darknet_sdl/wiki_f01.txt
+names = data/voc.names
+backup = XRVYL_VOC
+#idremap = data/voc_idremap.data
+
+layer     filters    size              input                output
+    0 conv     16  3 x 3 / 1   224 x 160 x   3   ->   224 x 160 x  16  0.031 (0.031)BFLOPs
+    1 max          2 x 2 / 2   224 x 160 x  16   ->   112 x  80 x  16
+    2 conv     32  3 x 3 / 1   112 x  80 x  16   ->   112 x  80 x  32  0.083 (0.114)BFLOPs
+    3 max          4 x 4 / 4   112 x  80 x  32   ->    28 x  20 x  32
+    4 conv    128  3 x 3 / 1    28 x  20 x  32   ->    28 x  20 x 128  0.041 (0.155)BFLOPs
+    5 max          4 x 4 / 4    28 x  20 x 128   ->     7 x   5 x 128
+    6 conv    512  3 x 3 / 1     7 x   5 x 128   ->     7 x   5 x 512  0.041 (0.196)BFLOPs
+    7 conv    512  3 x 3 / 1     7 x   5 x 512   ->     7 x   5 x 512  0.165 (0.361)BFLOPs
+    8 conv    256  1 x 1 / 1     7 x   5 x 512   ->     7 x   5 x 256  0.009 (0.370)BFLOPs
+    9 conv    512  3 x 3 / 1     7 x   5 x 256   ->     7 x   5 x 512  0.083 (0.453)BFLOPs
+   10 conv    125  1 x 1 / 1     7 x   5 x 512   ->     7 x   5 x 125  0.004 (0.457)BFLOPs
+   11 region
+mask_scale: Using default '1.000000'
+Loading weights from data/ttt/ttt5_224_160_final.weights...64bit OS trained major/minor/revision = 0/2/0 sizeof(size_t)=4
+Done!
+1 platforms
+        No.0-"Intel(R) FPGA SDK for OpenCL(TM)"
+        1 devices
+                No.0-"de10_nano_sharedonly : Cyclone V SoC Development Kit" : LOCAL_MEM_SIZE=0
+    Setup   InLayer    sub-Total TYPE Idx
+reading binary source_size=4038096
+Reprogramming device [0] with handle 1
+ 0.042105  0.027174  0.010273  0.003247  0.004767  0.001247  0.006205  0.000976 data/dog.jpg: Predicted in 1.031110 seconds.
+
+動いてる
+
+■USBカメラをつなぐと、
+
+hub経由:NG
+root@socfpga:~/area51/darknetT3# [ 2330.925371] usb usb1-port1: Cannot enable. Maybe the USB cable is bad?
+[ 2332.175371] usb usb1-port1: Cannot enable. Maybe the USB cable is bad?
+[ 2333.425369] usb usb1-port1: Cannot enable. Maybe the USB cable is bad?
+[ 2334.675368] usb usb1-port1: Cannot enable. Maybe the USB cable is bad?
+[ 2334.681901] usb usb1-port1: unable to enumerate USB device
+
+直接：OK(みたい:-)
+root@socfpga:~/area51/darknetT3# [ 2357.365376] usb 1-1: new high-speed USB device number 6 using dwc2
+[ 2357.797312] usb 1-1: New USB device found, idVendor=046d, idProduct=0825
+[ 2357.803994] usb 1-1: New USB device strings: Mfr=0, Product=0, SerialNumber=2
+[ 2357.811128] usb 1-1: SerialNumber: 9F396D40
+[ 2357.818135] uvcvideo: Found UVC 1.00 device <unnamed> (046d:0825)
+[ 2357.914360] input: UVC Camera (046d:0825) as /devices/soc/ffb40000.usb/usb1/1-1/1-1:1.0/input/input0
+認識している
+
+■DTSについて
+root@socfpga:~/area51/darknetT3# ls /sys/devices/soc
+arm-pmu            ffc02000.serial0  ffd01000.timer3     fffef000.l2-cache  soc:sdramedac
+driver_override    ffc03000.serial1  ffd02000.watchdog   ffff0000.sram      soc:usbphy@0
+ff702000.ethernet  ffc04000.i2c      ffd04000.clkmgr     modalias           subsystem
+ff704000.dwmmc0    ffc08000.timer0   ffd05000.rstmgr     power              uevent
+ff706000.fpgamgr   ffc09000.timer1   ffd08000.sysmgr     soc:amba
+ff800000.l3regs    ffc25000.sdr      ffd08140.l2edac     soc:fpgabridge@0
+ffb40000.usb       ffc25000.sdrctl   ffd08144.ocramedac  soc:fpgabridge@1
+ffc00000.can       ffd00000.timer2   fffec600.timer      soc:fpgabridge@2
+
+※DE0NanoとDE10NanoではDTSが異なる
+　DE0NanoのdtbをDE10Nanoで使うと、ハングはしないが、DE10Nanoがeth0を認識しなくなる

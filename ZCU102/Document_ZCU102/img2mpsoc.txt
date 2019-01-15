@@ -1,0 +1,77 @@
+Pythonソース：img2mpsoc.py
+
+構成①
+認識処理ソフトウェアのケース
+(a)PC上で画像切出し、送受信
+(b)MPSoC上のA53でNN認識処理し、送受信
+上記ケースにおいて、PC上で動作する機構を実装したPython
+
+【依存パッケージ】
+python
+opencv2(動画再生コーデック要)
+
+【コマンドオプション】
+$ python  img2mpsoc.py --help
+usage: img2mpsoc.py [-h] [-c | -m MOVIE | -p PICTURE] [-t | -s | -D]
+                    [-C CAMERANO] [-d [DATASET_DIR]] [-I IP] [-P PORT]
+                    [-B BUFFER_SIZE] [-v] [--encode ENCODE]
+                    [--resize RESIZE RESIZE] [--primitive PRIMITIVE PRIMITIVE]
+                    [--skip SKIP] [--subfrm SUBFRM SUBFRM]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -c, --camera                                         # USBカメラモード
+  -m MOVIE, --movie MOVIE                              # 動画モード
+  -p PICTURE, --picture PICTURE                        # 静止画モード
+  -t, --transfer                                       # クライアントモード
+  -s, --server_mode                                    # サーバテストモード
+  -C CAMERANO, --cameraNo CAMERANO                     # USBカメラ番号(デフォルト0)
+  -I IP, --ip IP                                       # クライアントIPアドレス
+  -P PORT, --port PORT                                 # クライアントPort
+  -v, --view_server                                    # 映像確認のみ(通信無し)
+  --skip SKIP                                          # スキップするフレーム数(15)
+  --subfrm SUBFRM SUBFRM                               # 認識処理対象のサブフレーム番号
+
+【機能】
+①動画：opencv2が扱えるフォーマット、再生、分割
+②静止画：opencv2が扱えるフォーマット再生、分割
+③TCP/IP送受信、画像送信、
+④画像分割
+⑤分割画像の保存
+⑥メインとサブの2枚のwindowを2枚表示
+　サーバからの認識結果の内、'car'はメインのwindowに赤枠
+　'car'以外の4種はメインwindow内で赤以外で色分けし、サブwindowにも表示
+
+【デモ立上げコマンド】
+id/passは cti/cti でログイン
+
+サーバの起動スクリプト：/home/20076433/DEMO_CTI/NNet/mpcnn.sh
+クライアントの在り処  ：/home/20076433/DEMO_CTI/PC/mpcnn.sh
+xtermなど2面を立ち上げて、それぞれでサーバとクライアントの起動スクリプトを実行する
+
+★デモ起動
+$ cd /home/cti/DEMO_CTI/NNet/
+$ ./mpcnn.sh
+          　サーバがWeightを読むのに数分掛かるので待つ
+$ Reduced Weight Reading.. Ready
+$ Normal  Weight Reading.. Ready
+           これでサーバはReadyなのでクライアント側を起動する
+
+$ cd /home/cti/DEMO_CTI/NNet/
+$ ./mpcnn.sh
+　　　　　　一時停止状態でクライアントが起動するので、	５つのウィンドウ位置を整える
+　　　　　　コマンド'c'で動画再生、認識開始
+　　　　　　コマンド'p'でポーズ
+　　　　　　コマンド'l'でループ再生指示
+　　　　　　コマンド'q'でクライアント終了(サーバはCntrl-Cで落とす)
+　　　　　　※ c,p,l,qが基本コマンド
+
+　　　　　　コマンド'r'でReducedモード(after)
+　　　　　　コマンド'n'でNormal モード(before)
+
+　　　　　　コマンド'skip=xx' xxはスキップするフレーム数でデフォルトは15
+　　　　　　コマンド'subfrm=(xx,yy)' xxとyyは認識開始と終了のサブフレーム番号でデフォルトは(00,09)
+　　　　　　※ サブフレーム番号は左上が00で右下が14。09は真ん中の段の右端を意
+
+　　　　　　コマンド'won'でディレクトリdataset/以下に認識した結果(256x256画像)が連続して保存される
+　　　　　　コマンド'woff'で保存停止

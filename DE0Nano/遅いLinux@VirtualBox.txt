@@ -1,0 +1,32 @@
+﻿[■遅いLinux@VirtualBox]
+CPU単独での動作が遅い
+ムリしないとGPUを使うことはできない
+
+これはWindows7上のchainer動作とLinux@VirtualBoxのchainer動作の速度を体感したんで分かった
+Linux@VirtualBoxでのcifar10学習が、1image/sec程度で
+Cmder@Windows7での全く同じ学習が27image/sec程度;-<
+
+1/20ぐらい遅いLinux@VirtualBox
+
+[■Cmder@Windows7+GPUに期待が集まる]
+
+CUDAやらcuDNNやらVisual Studioやらが必要になるんだがCmder@Windows7(CPU)の10倍は速くなるらしい
+
+現在試しているcifar10の学習が、2300秒/epochから230秒/epoch
+現在のバーガーPCにもPCIex x16laneが付いているから、GTX1050のGPUボードが搭載できる
+Gen2らしいけど
+
+[■nVIDIAのチップ性能表記はヘンテコ]
+GTX 1050 = GTX10の性能50
+と読むらしいんで、
+GTX  980 = GTX9 の性能80
+で性能的には、
+
+GTX1050 << GTX980
+ってことになるらしく、価格も以下同文
+
+新しいChipだけど性能的には古いものより劣ると、、、;-<
+価格ドットコムでもその通りの価格設定になってる
+
+けどバーガーPCはPCIex Gen2　らしいのでGTX1050でもいいかもね
+＊50系では1050が安いから、、、

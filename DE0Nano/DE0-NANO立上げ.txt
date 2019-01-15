@@ -1,0 +1,270 @@
+
+・terasic web siteよりドキュメント、関連ファイルをDL
+"http://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&CategoryNo=163&No=941&PartNo=4#Alt"
+
+DE0-Nano-SoC_User_manual.pdfに目を通す
+OpenCL環境については記載なし(当然!)
+なのでRocketBoard.orgに公開されているMandelbrotデモを参考にOpenCL環境の構築を以下試行
+
+Webよりデータシート"cv_51001.pdf"も取得
+1GB-DDR3/5CSEMA4U23C6NでA4タイプ、DSPは66個、49KLE、3MbのM10K内部メモリ
+2つのHard Memory Controllers(32bitx2ch)を持つが...
+USB 2.0 OTG/1G-Ethernetで毎度おなじみのなぜか加速度センサーが載っている
+
+・RocketBoard.orgよりMandelbrot@OpenCL環境を構築
+まずはMandelbrotのデモを再現してみる
+
+[■linuxカーネル]
+linuxソースDL"https://github.com/altcrauer/linux/tree/socfpga-3.10-ltsi_de0_nano_with_tft"
+上記からZIPでまとめたもをbranch"socfpga-3.10-ltsi_de0_nano_with_tft"を指定して取得
+"linux-socfpga-3.10-ltsi_de0_nano_with_tft.zip"
+
+VirtualBoxのUbuntuにてunzipできず、パーミッションの問題か？シンボリックリンクの問題みたい、諦め
+Windows7上からunzipを試すと、途中xt-command.hを上書きするか？と聞かれるがYesで続けると、警告1件出るが解凍成功
+
+Rocketboard.org/Webの指示通り下記を実行
+$export ARCH=arm
+$export CROSS_COMPILE=arm-linux-gnueabihf-
+$make socfpga_defconfig
+$make zImage
+$make socfpga_de0_nano.dts
+
+make zImageにてcompiler-gcc5.hが無いと叱られるので適当にDLしてlinux/compiler-gcc5.hを作り通過
+return_addressが重複宣言されていると叱られる、解決できず=> "SoC EDSとkernel再構築.txt」で成功
+(結局arm-linux-gnueabihf-gccなどの環境整備の不具合)
+
+[■Buildroot]
+Buildroot source codeのDL"https://github.com/altcrauer/opencl_soc_bsp/tree/de0_nano_with_display"
+上記からZIPでまとめたもをbranch"2015_08_with_sdl2_with_xorg"の指定では取得できず
+2015_08_with_sdl2_with_xorgでググると"https://github.com/altcrauer/buildroot/"にあったのでDL
+branch"2015_08_with_sdl2_with_xorg"を指定して取得
+Rocketboard.org/Webの指示通り下記を実行
+#export ARCH=arm
+#export CROSS_COMPILE=arm-linux-gnueabi-
+#make altera_soc_defconfig
+#make
+toolchain-external_undefined Extranting...
+404 not found
+とか叱られるが、linaroのサイトが変更になっているので修正
+$ vi toolchain/toolchain-external/toolchain-external.mk
+http://releases.linaro.org/14.09/components/toolchain/
+↓
+http://releases.linaro.org/archive/14.09/components/toolchain/
+エラー発生するが原因不明... どうやらlibstdc++.so.6が足りないみたい...
+
+CROSS_COMPILEの指定が効かず、全部arm-linux-gnueabihf-gccでコンパイルするらしい
+なので、arm-linux-gnueabihf-gccの環境を整える
+# ds-deps-ubuntu_64.sh --no-installで確認して、
+# ds-deps-ubuntu_64.sh
+不足しているライブラリをinstallできたようなので、
+# make
+...  2h以上
+NoErrorで終了、できたのか(?)
+
+さてどうするか？
+・zImageは(書き換えず)Mandelbrotのデモに使われているzImageを使う
+・動作させるアプリは、Mandelbrotデモのソースコードを修正コンパイルして載せ替え
+の手順はどうかで試行
+
+MandelbrotデモのSDCardは、
+①soc_system.dtb
+②soc_system.rbf
+③u-boot.scr
+④zImage
+の4ファイルで構成されている
+
+[■シリアル接続からIPアドレスの設定]
+まずはUSB Serialを使う
+USB SerialポートとPCのUSBをつなぐ
+デバイスマネージャからCOM6と分かったのでteratermで11.5Kbpsで接続
+root/パスワード無しでLoginできたので、Telnet環境を.bash_profileへ書き込み、reboot 1
+.bash_profileに書いた内容は保存される(ただしifconfigは効かない)
+
+(たぶん)SDカードをマウントして、書き換えがreboot後も有効かを確認
+mkdir /mnt/p2 /mnt/p1
+chmod 777 /mnt/p2 /mnt/p1
+mount /dev/mmcblk0p1 /mnt/p1
+mount /dev/mmcblk0p2 /mnt/p2
+どっかで読んだSDカードイメージ構造図を想定してmountしてみるとSDカードが読めた
+mmcblk0p1はzImageなど、mmcblk0p2はlinuxファイルシステムそのもので、どちらもvfatのFS構造
+
+で、mmcblk0p2以下を書き換えてみる
+vi /mnt/p2/etc/init.d/S49_localIP
+#!/bin/sh
+ifconfig eth0 192.168.1.100 netmask 255.255.255.0
+これでreboot 1
+reboot直後に調べると、eth0のIPアドレスがセットされていた:-)good
+/dev/mmcblk0p2以下の書き換えはreboot後も有効
+
+結局、/dev/mmcblk0p2以下は/以下と同じ実体を指している(同じモノってこと:-)ので、
+(u-bootでkernel引数に渡してある)mmcblk0p2のmountは不要
+なので、/以下を書き換えてSDカードのカスタマイズが可能、ただしmmcblk0p1はmountしてから書き換える
+
+[■telnet/ftpサーバについて]
+telentd, ftpdその他通信サーバは全てインストールされていない様子;-<困った
+
+[■busybox-armv4lの追加]
+インストールしてあるコマンド類はほとんどbusyboxのシンボリックリンクと分かったのでbusyboxの拡張を考える
+
+"https://busybox.net/downloads/binaries/1.24.0.git-defconfig-multiarch/"
+ここからbusyboxのarmコンパイル済バイナリ(busybox-armv4l)を取得し、ブート用SDカードにコピーしてブート
+# mount /dev/mmcblk0p1 /mnt/p1
+でマウントし、
+# cp /mnt/p1/busybox-armv4l /bin
+とする
+# busybox-armv4l --list
+でサポートするコマンドを確認すると、telnetdもftpdもサポートしているので、
+# cd /sbin
+# ln -s ../bin/busybox-armv4l telnetd
+# ln -s ../bin/busybox-armv4l ftpd
+# telnetd --help
+BusyBox v1.24.0.git (2015-10-04 23:30:33 UTC) multi-call binary.
+
+Usage: telnetd [OPTIONS]
+
+Handle incoming telnet connections
+
+        -l LOGIN        Exec LOGIN on connect
+        -f ISSUE_FILE   Display ISSUE_FILE instead of /etc/issue
+        -K              Close connection as soon as login exits
+                        (normally wait until all programs close slave pty)
+        -p PORT         Port to listen on
+        -b ADDR[:PORT]  Address to bind to
+        -F              Run in foreground
+        -i              Inetd mode
+        -w SEC          Inetd 'wait' mode, linger time SEC
+        -S              Log to syslog (implied by -i or without -F and -w)
+#
+とbusybox-armv4lがtelnetdとして動作するようになった
+vi /etc/init.d/S49_localIP
+でtelnetd起動を追記しreboot後、VirtualBoxよりtelnet接続が可能になった:-)
+telnet 192.168.1.100
+buildroot login:root
+#
+
+ftpdも同様に使えるようになるだろうが、ftpdはinetdからの起動が必要なので、
+S49_localIP
+で
+/sbin/telnetd
+/usr/sbin/inetd
+としてブート時起動で、設定ファイルは
+/etc/inetd.confに
+ftp stream tcp nowait toot /sbin/ftpd ftpd
+として、telnetdはinetd対象外とするために/etc/servicesからtelnetの項目をコメントアウト
+#telnet     23/tcp
+これでtelnetdは常時起動しているデーモンで捌き、ftpdはOnDemandでinetdから起動される
+
+[■ftpdの設定]
+/etc/hosts.allowには接続元のPCを
+ftp: 192.168.1.* : allow
+許可し、inetdから起動するinetd.confを
+ftp stream tcp nowait root /sbin/ftpd ftpd -s /home/ftp
+
+ftp接続時の仮想ルートを
+(なければmkdir /home/ftp)
+chown ogura:ogura /home/ftp
+chmod 777 /home/ftp
+
+adduser ogura
+でユーザoguraを登録しておく
+
+で、linuxのftpからのputテストは0バイトファイルになっちゃってNG
+だが、WinSCPからは接続もputもgetもOK ;->
+設定は、ftpで192.168.1.100でrootでテキトーなパスワード
+なんだかわからないが転送方法が1つ完成(?)
+
+次のFeasibilityStudy、OpenCL環境へ
+
+[■OpenCL環境]
+
+OpenCLのコンパイラはDE1-SOCの時立ち上げたので、そのまま使う
+以下はaltera供給のOpenCLコンパイル環境なEmbedded_Command_Shell.bat@WindowsCMDから試行
+
+$ aoc --version
+Altera SDK for OpenCL, 64-Bit Offline Compiler
+Version 15.1.0 Build 185
+Copyright (C) 2015 Altera Corporation
+となり15.1.0だが、MandelbrotのRocketboard.org/Webでは、
+
+ Build system requirements
+
+This is what I had on my system.
+
+    Quartus 15.0
+    SoC EDS 15.0
+    Altera OpenCL SDK 15.0
+    Centos 6.6
+    git 
+まぁいいっか:-)
+
+OpenCL BSP sourceのDL"https://github.com/altcrauer/opencl_soc_bsp/tree/de0_nano_with_display"
+上記からZIPでまとめたもをbranch"de0_nano_with_display"を指定して取得
+"opencl_soc_bsp-de0_nano_with_display.zip"
+
+以下RocketBoard.org/Webに従う、
+
+#To build with the BSP, you have to set AOCL_BOARD_PACKAGE_ROOT
+export AOCL_BOARD_PACKAGE_ROOT=/cygdrive/n/win_shared/DE0_NANO/OpenCL/opencl_soc_bsp-de0_nano_with_display/c5soc/de0_nano_sharedonly_with_spi_tft
+
+#you should see the de0 listed with this command
+aoc --list-boards 
+
+$Cannot find board_env.xml
+と叱られるので、
+export AOCL_BOARD_PACKAGE_ROOT=N:\\win_shared\\DE0_NANO\\OpenCL\\opencl_soc_bsp-de0_nano_with_display\\c5soc
+と、Windows乗りの記法で、かつboard_env.xmlがあるディレクトリにすると,
+
+aoc --list-boards
+Board list:
+   c5soc_sharedonly
+   de0_nano_sharedonly_with_spi_tft
+と、それらしい出力が得られた
+
+#if you recompile linux, you need to compile the driver in opencl_soc_bsp/c5soc/driver
+make KDIR=path/to/linux/src
+これはlinuxをリコンパイルした場合のdriverとのバージョン合わせなので無視
+
+これでBSPの準備は終わり？次、Mandelbrotアプリケーションコンパイルへ
+
+[■Mandelbrot application source code]
+MandelbrotソースDL"https://github.com/altcrauer/mandelbrot_demo"
+上記からZIPでまとめたもをbranch"master"を指定して取得
+"mandelbrot_demo-master.zip"
+
+以下RocketBoard.org/Webに従う、
+
+#build aocx with this command
+$aoc device/mandelbrot_kernel.cl --board de0_nano_sharedonly_with_spi_tft
+
+Error:aoc:Can't find a valid license for the Altera SDK for OpenCL
+ひぃぃぇ～ライセンス切れ;-<
+環境変数を修正して、島崎さん所有のライセンスを借用する
+LM_LICENSE_FILE=1717@158.211.82.17;D:\Xilinx\Xilinx.lic
+としてaocを再起動し2h程でコンパイル終了
+"mandelbrot_kernel.aocx"
+"mandelbrot_demo-master/top.rbf"
+が出来た。
+
+#build host code
+make -f Makefile.arm
+
+としHostコードのコンパイル終了し
+"bin/mandelbrot"
+が出来た。(Makefile.arm内でコンパイラは固定されるので環境変数不要)
+
+[■mandelbrotのFPGA上での起動]
+このmandelbrotデモも、オプティカルフローデモと同様で、
+・U-Boot時にFPGA部分をコンフィグする
+　SDカードの"soc_system.rbf"でU-Bootからコンフィグ
+・linuxからのOpenCL kernel起動時にはFPGAコンフィグしない
+　/de0_ocl_150_tft/demos/start_mandelbrot_demo.shがスタートスクリプトで、
+　/etc/init.d/S50_start_mandelbrot_demo.shにリンクされている
+　この中で、
+　/de0_ocl_150_tft/disable_auto_reprogram.sh
+　(export CL_CONTEXT_COMPILER_MODE_ALTERA=3)
+　が走りリコンフィグを停止し、OpenCL kernel起動のみ実施している
+・re-compileしたbin/mandelbrotをSDカード内のmandelbrotと差し替えてデモ起動
+　OK:-)
+
+試しに再コンパイルしたmandelbrot_demo-master/top.rbfをSDカード内のsoc_system.rbfと
+置き換えてreboot  => 未試行

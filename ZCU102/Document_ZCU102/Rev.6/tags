@@ -1,0 +1,72 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+DemoState	img2mpsoc.py	/^class DemoState:$/;"	c
+GUIx	cQT.py	/^def GUIx():$/;"	f
+USB_start_string	img2mpsoc.py	/^USB_start_string=np.array([0xA,0x5]*10,dtype=np.uint8).tostring()$/;"	v
+__getitem__	img2mpsoc.py	/^	def __getitem__(self,idx):$/;"	m	class:boxes	file:
+__init__	cQT.py	/^	def __init__(self):$/;"	m	class:panel
+__init__	img2mpsoc.py	/^	def __init__(self):$/;"	m	class:DemoState
+__init__	img2mpsoc.py	/^	def __init__(self,img,resize=(1280,768),pr_shape=(256,256,3),host='127.0.0.1',port=8888,encode=None):$/;"	m	class:pictures
+__init__	img2mpsoc.py	/^	def __init__(self,img_source=0,resize=(1280,768),pr_shape=(256,256,3),host='127.0.0.1',port=8888,encode=None):$/;"	m	class:movie
+__init__	img2mpsoc.py	/^	def __init__(self,limit=4):$/;"	m	class:boxes
+__iter__	img2mpsoc.py	/^	def __iter__(self):$/;"	m	class:movie	file:
+__iter__	img2mpsoc.py	/^	def __iter__(self):$/;"	m	class:pictures	file:
+acquire_quit	img2mpsoc.py	/^	def acquire_quit(self):$/;"	m	class:DemoState
+acquire_run	img2mpsoc.py	/^	def acquire_run(self):$/;"	m	class:DemoState
+append	img2mpsoc.py	/^	def append(self,reply):$/;"	m	class:boxes
+args	img2mpsoc.py	/^	args = get_args()$/;"	v
+boxes	img2mpsoc.py	/^class boxes(object):$/;"	c
+check	img2mpsoc.py	/^	def check(self):$/;"	m	class:DemoState
+checkCommand	img2mpsoc.py	/^def checkCommand():$/;"	f
+clear	img2mpsoc.py	/^	def clear(self):$/;"	m	class:boxes
+delw	img2mpsoc.py	/^def delw(): cv2.destroyAllWindows()$/;"	f
+demoState	img2mpsoc.py	/^demoState = DemoState()$/;"	v
+detinfo2string	img2mpsoc.py	/^def detinfo2string(partNo,classes):$/;"	f
+detinfo_col	img2mpsoc.py	/^detinfo_col=[(0,0,0),col_R,col_B,col_G,(255,255,0),(255,255,255),(0,255,255),(255,0,255),(0,0,0)]$/;"	v
+detinfo_length_byte	img2mpsoc.py	/^detinfo_length_byte = 6$/;"	v
+doContinue	cQT.py	/^	def doContinue(self):$/;"	m	class:panel
+doPause	cQT.py	/^	def doPause(self, value):$/;"	m	class:panel
+draw_box2img	img2mpsoc.py	/^def draw_box2img(img,boxes,pr_shape=(256,256,3)):$/;"	f
+get_args	img2mpsoc.py	/^def get_args():$/;"	f
+idx2detinfo	cQT.py	/^idx2detinfo=['ignored','car','pedestrian','sign','light','nothing']$/;"	v
+idx2detinfo	img2mpsoc.py	/^idx2detinfo	=	['ignored','car','pedestrian','sign','light','nothing']$/;"	v
+img2string	img2mpsoc.py	/^def img2string(img,encode=None):$/;"	f
+in2out	img2mpsoc.py	/^def in2out():$/;"	f
+initWindows	img2mpsoc.py	/^def initWindows(title='Low Prob-'):$/;"	f
+ishow	img2mpsoc.py	/^def ishow(img,title='movie'):$/;"	f
+ishow_splited_img	img2mpsoc.py	/^def ishow_splited_img(splited_img,go_shape=(768,1280,3),pr_shape=(256,256,3)):$/;"	f
+main	cQT.py	/^def main():$/;"	f
+movie	img2mpsoc.py	/^class movie(object):$/;"	c
+next	img2mpsoc.py	/^	def next(self):$/;"	m	class:boxes
+next	img2mpsoc.py	/^	def next(self):$/;"	m	class:movie
+next	img2mpsoc.py	/^	def next(self):$/;"	m	class:pictures
+panel	cQT.py	/^class panel(QtGui.QWidget):$/;"	c
+picture	img2mpsoc.py	/^def picture(filename,resize=(1280,768)):$/;"	f
+pictures	img2mpsoc.py	/^class pictures(object):$/;"	c
+prod2int	img2mpsoc.py	/^def prod2int(shape):return int(np.prod(shape))$/;"	f
+release	img2mpsoc.py	/^	def release(self):self._cap.release()$/;"	m	class:movie
+save	img2mpsoc.py	/^	def save(self,directory='.\/dataset'):$/;"	m	class:movie
+save_dataset	img2mpsoc.py	/^def save_dataset():$/;"	f
+send	img2mpsoc.py	/^	def send(self):$/;"	m	class:pictures
+send	img2mpsoc.py	/^	def send(self,title='movie'):$/;"	m	class:movie
+send_img2server	img2mpsoc.py	/^def send_img2server(img,host='127.0.0.1',port=8888,encode=None):$/;"	f
+send_string2server	img2mpsoc.py	/^def send_string2server(string,host='127.0.0.1',port=8888):$/;"	f
+server_for_test	img2mpsoc.py	/^def server_for_test():$/;"	f
+set_TCP	img2mpsoc.py	/^	def set_TCP(host,port,encode=None):$/;"	m	class:movie
+set_TCP	img2mpsoc.py	/^	def set_TCP(host,port,encode=None):$/;"	m	class:pictures
+socket_error_framNo	img2mpsoc.py	/^socket_error_framNo=255$/;"	v
+socket_ioerror	img2mpsoc.py	/^socket_ioerror=0$/;"	v
+split_img	img2mpsoc.py	/^def split_img(img,go_shape=(768,1280,3),pr_shape=(256,256,3)):$/;"	f
+stat	img2mpsoc.py	/^def stat(host='127.0.0.1',port=8888):$/;"	f
+stat_comm_string	img2mpsoc.py	/^stat_comm_string=np.array([0xA,0x3]*10,dtype=np.uint8).tostring()$/;"	v
+string2array1D	img2mpsoc.py	/^def string2array1D(string,encode=None):$/;"	f
+string2detinfo	img2mpsoc.py	/^def string2detinfo(string):$/;"	f
+th	img2mpsoc.py	/^			th=threading.Thread(target=checkCommand)$/;"	v
+usb_mode	img2mpsoc.py	/^def usb_mode(host='127.0.0.1',port=8888):$/;"	f
+view	img2mpsoc.py	/^	def view(self,title='movie'):$/;"	m	class:movie
+view	img2mpsoc.py	/^	def view(self,title='pictures'):$/;"	m	class:pictures
+view_top4	img2mpsoc.py	/^def view_top4(box,img,title='Low Prob-'):$/;"	f

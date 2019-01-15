@@ -1,0 +1,23 @@
+DE10-NanoではSVMは未サポート、、、残念
+
+■SVMの設定方法
+
+void *svmalloc(int size){
+    void *ptr = clSVMAlloc(context, CL_MEM_READ_WRITE, size, 0); 
+    if(!ptr) error("clSVMAlloc");
+    return ptr;
+}
+float *A=svmalloc(10000);
+
+こんな感じで、メモリアロケーションするだけ。ただし、カーネルへ引数としてセットする際は、
+
+ret = clSetKernelArgSVMPointer (kernel, 4, (void *) A);
+
+通常のclSetKernelArgは使わないで専用のAPIを使う
+
+■未サポート
+DE10-Nanoではサポートされていないので、clEnqueueTask(...)を起動すると
+
+CL_INVALID_OPERATION
+
+となる。clSVMAlloc()やclSetKernelArgSVMPointer()などはノーエラー

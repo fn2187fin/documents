@@ -1,0 +1,62 @@
+ネットワーク環境とopkg環境が整ったので.ipkレポからカメラアプリをインストールして試す
+
+https://github.com/thinkoco/linux-socfpgaこのカーネルconfigには、UVCサポートが入っているしOpenCLも使えるモノ
+("Kernel再構築その2決着.txt"参照)
+rootfsにはlibv4l*が入っている
+⇒UVC USBカメラは動くハズ
+
+■結論
+UVCのUSBカメラ接続は成功
+FPSもLatencyもそこそこ
+gtk+関係も正常動作
+
+■DE1SoCの時の候補を試すと、
+静止画
+・fswebcam:libgdもインストールしてOK
+
+動画
+・luvcview:TriangluarTracker(???)ライブラリ不足
+・guvcview:ソース不明
+で、DE10Nanoではダメだった
+
+■動画系をopkg listで調べると、、cheese発見！試すと
+$ opkg install cheese
+gtk+, gstreamerなどに依存していますが、全部インストールできたみたい
+
+logicoolのUSBカメラをつないで、
+root@socfpga:~/area51/sdl1/luvcview# [ 5231.615328] usb 1-1: new high-speed USB device number 2 using dwc2
+[ 5232.047261] usb 1-1: New USB device found, idVendor=046d, idProduct=0825
+[ 5232.053944] usb 1-1: New USB device strings: Mfr=0, Product=0, SerialNumber=2
+[ 5232.061076] usb 1-1: SerialNumber: 9F396D40
+[ 5232.065994] uvcvideo: Found UVC 1.00 device <unnamed> (046d:0825)
+[ 5232.162073] input: UVC Camera (046d:0825) as /devices/soc/ffb40000.usb/usb1/1-1/1-1:1.0/input/input0
+
+cheese起動
+$ cheese
+root@socfpga:~/area51/sdl1/luvcview# cheese
+GConf Error: Configuration server couldn't be contacted: D-BUS error: Unable to store a value at key '/apps/cheese/countdown',
+ as the configuration server has no writable databases. There are some common causes of this problem: 1) your configuration
+ path file /etc/gconf/2/path doesn't contain any databases or wasn't found 2) somehow we mistakenly created two gconfd processes 3)
+ your operating system is misconfigured so NFS file locking doesn't work in your home directory or 4)
+ your NFS client machine crashed and didn't properly notify the server on reboot that file locks should be dropped.
+ If you have two gconfd processes (or had two at the time the second was launched),
+ logging out, killing all copies of gconfd, and logging back in may help. If you have stale locks,
+ remove ~/.gconf*/*lock. Perhaps the problem is that you attempted to use GConf from two machines at once,
+ and ORBit still has its default configuration that prevents remote CORBA connections - put "ORBIIOPIPv4=1" in /etc/orbitrc.
+ As always, check the user.* syslog for details on problems gconfd encountered. There can only be one gconfd per home directory,
+ and it must own a lockfile in ~/.gconfd and also lockfiles in individual storage locations such as ~/.gconf
+なんだかいっぱい文句を言われますが、、、
+
+わぁ～ぉ、カメラが動作しました:-)
+
+■OpenCVサンプルを試す
+cheeseで試して分かったのが、"USBカメラ+V4Lでは、対応できない解像度がある"、ということ
+カメラによって対応できる解像度が違うのかもしれないが、写るものをcheeseで調べる
+○ 1280x960
+○  960x720
+×  640x480  <=大事な4:3モードがダメ;-M
+○  320x240  <=こっちの4:3モードは動いた
+
+■darknet_tttでデフォルトな解像度を320x240に修正
+./darknet detector demo cfg/voc.data cfg/ttt5_224_160.cfg data/ttt/ttt5_224_160_final.weights
+USBカメラ入力での物体検出が動いた

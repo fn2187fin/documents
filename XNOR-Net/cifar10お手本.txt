@@ -1,0 +1,191 @@
+﻿mnistは90%以上の正解率が出せるXNOR-Netだが、cifar10だと20%そこそこ;-<
+学習スクリプトの問題か
+ネットワークの問題か
+
+[■cifar10を解くお手本]
+お手本をググると、
+http://qiita.com/dsanno/items/ad84f078520f9c9c3ed1
+↑ここには色々なネットワークでcifarを試す例があるので試す
+
+※VirtualBoxでは遅すぎると気づき、Windows上のCmderからchainer実行
+pip install chainer anaconda2が入っているのでpipが使えた？
+さらにchocolatyをインストール
+
+$ git clone https://github.com/dsanno/chainer-cifar
+$ cd chainer-cifar
+$ cd src
+
+[■cifar10データ準備]
+$ python download.py
+$ python dataset.py
+
+3種類のデータアーグメンテーションが施されて、
+    画像から平均値を引く
+    ZCA Whitening(今回は使わない)
+    Contrast Normalization + ZCA Whitening
+
+$ ls *.pkl
+image.pkl  image_norm.pkl  image_norm_zca.pkl  image_zca.pkl  label.pkl
+※.pklはnumpyのオブジェクトをダンプしたモノらしい　pickleモジュールが必要
+
+[■ネットワーク定義もコってます]
+
+net.pyには数種類のネットワークが定義出来ていて、train.pyのオプションで切り替えるらしい
+
+まずはBatchNormalizationを使ったConvolution3層、FC2層の↓
+
+class CNNBN(chainer.Chain):                                 
+    def __init__(self):                                     
+        super(CNNBN, self).__init__(                        
+            bconv1=BatchConv2D(3, 64, 5, stride=1, pad=2),  
+            bconv2=BatchConv2D(64, 64, 5, stride=1, pad=2), 
+            bconv3=BatchConv2D(64, 128, 5, stride=1, pad=2),
+            l1=L.Linear(4 * 4 * 128, 1000),                 
+            l2=L.Linear(1000, 10),                          
+        )                                                   
+                                                            
+    def __call__(self, x):                                  
+        h1 = F.max_pooling_2d(self.bconv1(x), 3, 2)         
+        h2 = F.max_pooling_2d(self.bconv2(h1), 3, 2)        
+        h3 = F.max_pooling_2d(self.bconv3(h2), 3, 2)        
+        h4 = F.relu(self.l1(F.dropout(h3)))                 
+        return self.l2(F.dropout(h4))                       
+これを使ってみる
+
+中のBatchConv2Dは、
+class BatchConv2D(chainer.Chain):                                                 
+    def __init__(self, ch_in, ch_out, ksize, stride=1, pad=0, activation=F.relu): 
+        super(BatchConv2D, self).__init__(                                        
+            conv=L.Convolution2D(ch_in, ch_out, ksize, stride, pad),              
+            bn=L.BatchNormalization(ch_out),                                      
+        )                                                                         
+        self.activation=activation                                                
+                                                                                  
+    def __call__(self, x):                                                        
+        h = self.bn(self.conv(x))                                                 
+        if self.activation is None:                                               
+            return h                                                              
+        return self.activation(h)                                                 
+Convolution+BatchNormalization+ReLuで構成されたもの
+
+[■この人の学習スクリプトもコリまくり]
+
+これでデータの準備が出来たようなので、学習を起動
+$ python train.py -g -1 -m cnnbn -b 128 -p cnnbn --optimizer adam --iter 100 --lr_decay_iter 100
+image.pklとlabel.pklがデフォルトのデータセットで、データアーグメンテーション無し
+
+-b 128: ミニバッチ数128
+--optimizer adam: OptimizerとしてAdamを使用
+--iter 300: epoch数300
+--lr_decay_iter 100: 学習率(Adamの場合はalpha値)を100epoch毎に1/10する
+
+学習率を100epoch毎に1/10にしてるらしい
+コったスクリプトでは、肝心の正解率の計算なんかもコっていて正解率の出し方が正しいのか検証が難しい
+例えば、test acc、って普通は試験の正解率でしょうが、このスクリプトではエラー率のことらしい
+
+
+[■chainerはv2が必須で、v1系ではchainer.using_configとnet.cleargradsメンバでエラー]
+
+※pip install chainer==1.24で起動するとchainer.using_configやnet.cleargradsでエラーが出る
+※この2つを外す修正をして無理やり動かすと、エラー率=90%(loss計算はNaN)とかになった
+※chainer v2ではちゃんとWeb通りの結果を表示している
+
+$ pip install chainer --upgrade
+さらにPYTHONPATHが悪さをしているようなので消去
+
+Linux@VirtualBoxよりは10倍速いが、、、やっぱり、遅い;-<
+pythonは2.7系、chainerはv2になってしまったぁ:-O
+
+$ python --version
+Python 2.7.12 :: Anaconda 4.1.1 (64-bit)
+
+$ python
+>>> import chainer
+>>> chainer.__version__
+'2.0.2'
+
+[■学習経過始まり]
+epoch 1 done
+train loss: 1.68437577344 error: 60.2228338068
+valid loss: 1.22705365257 error: 45.36
+test  loss: 1.20541909618 error: 44.24
+test time: 193.848221773s
+elapsed time: 2318.34122731
+
+学習の問題と答えと試験に2,318+193秒で2,511秒、41分
+学習と試験のエラー率が60.22%と44.24%
+CPU処理なんで遅い(サンプル提供者はGPU: GTX 1080を使って50分らしい)
+
+[■推定スクリプトepoch 7が終わって]
+画像をロードして適当なサンプルを選んで推定するスクリプトで確認
+
+#! /bin/env python
+import chainer
+import numpy as np
+import matplotlib.pyplot as plt
+import chainer.serializers as seri
+import cPickle
+
+# モデルをロード
+import net
+m=net.CNNBN()
+seri.load_npz('cnnbn.model',m)
+
+# データをロード
+with open('dataset/cifar-10-batches-py/batches.meta','rb') as f:
+	meta_all=cPickle.load(f)
+print("meta=",meta_all.keys())
+print("meta=",meta_all['label_names'])
+with open('dataset/cifar-10-batches-py/data_batch_1','rb') as f:
+    d_all = cPickle.load(f)
+
+# 推定する関数
+def infer(targetIdx=0):
+	print(d_all.keys())
+	d0 = d_all['data'][targetIdx]
+#	print("d0=",d_all['data'][targetIdx])
+	d0 = d0.reshape(3,32,32)
+#	print("d0=",d0,d0.shape)
+
+	v0 = d0.astype(np.float32).reshape(1,3,32,32)
+	score=m(v0)
+	print("answer score=",score[0].data)
+	print("answer index=",np.argmax(score[0].data))
+	print("answer all label=",meta_all["label_names"])
+	print("answer label={}".format(meta_all["label_names"][np.argmax(score[0].data)]))
+
+	print("show")
+	plt.imshow(d0.transpose(1,2,0))
+	plt.show()
+
+# 適当なデータを推定
+infer(410)
+infer(411)
+infer(412)
+infer(413)
+infer(412)
+infer(418)
+
+24.47%のエラー率なんですが、、、まぁまぁ正解
+
+[■GPUで動かす]
+GTX1080　速い速い:-)
+epoch 102で12.38%までエラー率が下がる、、、へぇ～
+infer_cifar10.pyで見ると、結構正解！
+
+[■chainer v2 vs v1 どうもねぇ]
+chainerのバージョンが違うと結果が違う機械学習
+バージョン違いによってスクリプトの途中でエラーを吐いて止まるのは良いが、
+付け焼刃修正でも動いてしまい、、、
+結果が変わる;-<　これはこれは、、、
+
+chainer v2の解説
+・学習中でない場合の処理をchainer.using_config('train', False)でくくる
+dropoutやBatchNormalizationの呼び出しから引数train, testを削除しました。
+このままだとこれらの関数が学習中のモードで動作してしまいます。　←えぇぇぇ～そんなぁ～
+Chainer v2からはwith chainer.using_config('train', ):を使って学習中かどうかを制御します。
+    with chainer.using_config('train', False):
+        # 学習中でない場合の処理(テストデータの精度計算など)
+これなどひどい、動いてしまいます、ってぇ～のがつらい
+
+

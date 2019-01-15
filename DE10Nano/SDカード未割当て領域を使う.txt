@@ -1,0 +1,21 @@
+DE10-Nano上で第1にパーティッションを作る
+
+・LinuxBSPでlinuxをブートして、
+・fdisk /dev/mmcblk0でデバイス全体のパーティショニング
+・pコマンドで使っている最後のブロック位置を確認する
+・nコマンドで
+  default 4番目のパーティッション
+  使っていない先頭のブロック位置から最後のブロック(default)
+・wコマンドでpartition-table書き込み
+・reboot
+
+これで/dev/mmcblk0p4が現れる
+
+次は、DE10-Nano上で/dev/mmcblk0p4にファイルシステムを作る
+
+・mkfs /dev/mmcblk0p4
+　デフォルトでext2ができる
+・reboot
+・mount /dev/mmcblk0p4 /mnt
+
+完成:-)

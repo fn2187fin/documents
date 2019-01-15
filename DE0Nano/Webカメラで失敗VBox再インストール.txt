@@ -1,0 +1,35 @@
+[■VirtualBoxでWebカメラを使う]
+VirtualBox 5.0.xでWebカメラはすでに対応済で、extension packのインストールは不要
+以下はまるで不要な作業だった;-<
+
+・症状と対策
+VirtualBoxでWebカメラを使うため必要なextension packをインストール
+extension packが原因かは不明だけど、VirtualBoxのXorgが起動しなくなった
+/etc/xorg.confが消滅してるし、どこがどう壊れたかわからないから、色々サルベージするよりクリーンインストールした
+Extension Packとのバージョン問題もあるのかもしれないし、VirtualBoxそのものも再インストール
+
+VirtualBoxは古いモノはアンインストールせずそのまま新しいモノをインストールして、5.1.22 r115126とかになった
+
+・ゲストOS
+Ubuntuは英語版をインストール
+画面サイズ問題、共有ファイル問題などの定番解決ソフト Guest Additional CDをインストール
+Webカメラを使いたいんで、extension packをVirtualBoxと同じバージョンをインストール
+
+・バックアップ
+バックアップを取る癖はつけておかないとなぁ～
+①スナップショット
+②仮想アプライアンス
+とか色々なバックアップが取れるみたいだけど、
+③OVAとかいう仮想環境の共通フォーマットでバックアップをとると、WMWareとか 
+でも起動できるとか
+これが一番強力かもしれない
+
+[■でぇ、Webカメラ接続]
+VirtualBox 5.0.x以上ならextension packは不要らしい
+・WindowsホストにUSBでWebカメラを接続
+・Windowsのデバイスドライバーインストール完了
+・ゲストOSの起動
+・ゲストOSのVirtualBoxメニュー⇒デバイス⇒Webカメラ⇒C922 Pro Stream Camをチェック
+・# apt-get install cheese　テスト用にcheeseを入れる
+・# cheese
+おっとぅカメラ画像が表示できました:-)

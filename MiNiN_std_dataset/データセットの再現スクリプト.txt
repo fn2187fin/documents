@@ -1,0 +1,178 @@
+﻿データセットの再現スクリプト
+検出率とNiNを調整しながらデータを集めたので、
+どんなデータをどのスクリプトで使ったのか分からなくなりました
+
+Darknet + cifar_minin.cfg @Windows7
+
+[■再現するデータ]
+①Faces
+MITから
+http://vis-www.cs.umass.edu/lfw/
+②automobile
+Darknetから
+https://pjreddie.com/darknet/train-cifar/
+③mit_spat
+MITから
+http://people.csail.mit.edu/torralba/code/spatialenvelope/
+④indoor
+MITから
+http://web.mit.edu/torralba/www/indoor.html
+⑤VOC
+PascalVOCから人が画像の半分以上を占めるもの
+
+興味のあるもの約15000枚、と興味の無いもの約5000枚(7:3とする)
+興味のあるもの約15000枚＝人12000枚、車3000枚
+つまり、
+興味のあるもの：興味の無いもの＝7:3
+
+[■Darknetで分類する際のデータの持ち方]
+Darknetは、
+番号_クラス名.データ形式
+で画像を用意して、使うデータの一覧を
+train.list
+test.list
+に列挙し、cifar.dataにそのファイル名を列挙する
+
+[■手順とスクリプト]
+
+□ダウンロード
+
+元データセットのDownLoad、
+①lfw/　　　　　　MITから落として展開　　　　　　　　person
+②cifar/　　　　　DarknetのWebの指示通り落として展開 person/automobile
+③spatial_envelope_256x256_static_8outdoorcategories/
+                  MITから落として展開　　　　　　　　background
+④indoorCVPR_09/　MITから落として展開　　　　　　　　background
+⑤VOCdevkit/　　　DarknetのWebの指示通り落として展開 person
+
+それぞれの内容は、
+①lfw
+　全てpersonクラスとして、番号_person.jpgでFaces/に保存
+②cifar
+　trainとtestに分けられていてファイル名は番号_クラス名
+　人画像はcifarにない
+　番号_automobile.pngと番号_truck.pngだけを番号_automobile.pngでcifar_automobile/に保存
+③spatial_envelope_256x256_static_8outdoorcategories
+　全て番号_background.jpgでmit_spat/に保存
+④indoorCVPR_09
+　すべて番号_background.jpgでindoor/に保存
+⑤VOCdevkit
+　xmlを解析して人が画像の半分以上を占めるファイルだけを選び
+　番号_person.jpgでVOCperson/に保存
+
+□名前にクラス名を入れて特定のディレクトリへコピー処理するスクリプト
+
+①②③④を名前にクラス名を入れて特定のディレクトリへコピー処理するスクリプトは、
+　retarget.py
+　　lfwからnew_dirへjpgやpngを番号_person.jpgとか番号_person.pngに名前を変更してコピー
+
+    $ python retarget.py --help
+    usage: retarget.py [-h] [--execute] [--new_class NEW_CLASS] [--in_rex IN_REX]
+                       [--append] [--verbose]
+                       in_dir [in_dir ...]
+    rename and copy image files for darknet classifier rule
+    positional arguments:
+      in_dir
+    optional arguments:
+      -h, --help            show this help message and exit
+      --execute, -e         execute copy.
+      --new_class NEW_CLASS, -c NEW_CLASS
+                            person or automobile or etc.
+      --rex IN_REX, -r IN_REX
+                            jpg or (jpg|png) or etc.
+      --append, -a          append new file, dont overwrite existed file
+      --verbose, -v
+
+↑これを使ってrename and copyする
+①  $ python retarget.py lfw Faces2 -r '(jpg|JPG)' -v -e
+②  $ python retarget.py cifar cifar_autmobile -r '(automobile|truck)' -v -c automobile -e
+③  $ python retarget.py spatial_envelope_256x256_static_8outdoorcategories mit_spat2 -r '(jpg|JPG)' -v -c background -e
+④  $ python retarget.py indoorCVPR_09 mit_indoor2 -r '(jpg|png)' -v -c background -e
+
+また、VOCはxmlの解析が必要なので別スクリプト
+⑤を名前にクラス名を入れて特定のディレクトリへコピー処理するスクリプトは、
+　  voc_person.py
+
+□興味のあるもの：興味の無いもの＝7:3なtrain.listとtest.listを作るスクリプト
+Faces2/ cifar_automobile/ mit_spat2/ mit_indoor2/ VOCperson/のディレクトリに格納できた
+
+  reconst_list.py
+  7:3の比率でtrain 90% test 10%なリストを作るスクリプト
+
+personとautomobileなファイルは全て学習するとして
+person+automobile : background = 7:3になるbackgoundを選ぶ
+
+    $ python reconst_list.py Faces2/ mit_indoor2/ VOCperson/ cifar_autmobile/ mit_spat2 -t train6.list -T test6.list
+    *start
+    processing Faces2/
+    processing mit_indoor2/
+    processing VOCperson/
+    processing cifar_autmobile/
+    processing mit_spat2
+    input directories       posi/nega=26078/18302
+            7:3 ruling      posi/nega=26078/11176
+            10p ruling      train posi/nega=23470/10058      test posi/nega=2608/1118
+    *randomize
+    *making list
+    train posi/nega =23470/10058
+    test  posi/nega =2608/1118
+    train(posi+nega)/test(posi+nega) = 33528/3726 files
+    write out into train6.list/     33528   lines
+    write out into test6.list/      3726    lines
+
+確認してみる
+    $ python checkclass.py labels5.txt train6.list
+    *label = labels5.txt                                       
+    *list  = train6.list                                       
+    labels=3        lists=33528                                
+              automobile items / total = 10775 /    33528      
+                  person items / total = 12695 /    33528      
+              background items / total = 10058 /    33528      
+                           items total = 33528                 
+     items path                                                
+     11912 C:\Users\kenji\shared\darknet\weight/Faces2         
+       783 C:\Users\kenji\shared\darknet\weight/VOCperson      
+     10058 C:\Users\kenji\shared\darknet\weight/mit_indoor2    
+     10775 C:\Users\kenji\shared\darknet\weight/cifar_autmobile
+
+    $ python checkclass.py labels5.txt test6.list
+    *list  = test6.list
+    labels=3        lists=3726
+              automobile items / total =  1225 /     3726
+                  person items / total =  1383 /     3726
+              background items / total =  1118 /     3726
+                           items total =  3726
+     items path
+      1321 C:\Users\kenji\shared\darknet\weight/Faces2
+        62 C:\Users\kenji\shared\darknet\weight/VOCperson
+      1118 C:\Users\kenji\shared\darknet\weight/mit_indoor2
+      1225 C:\Users\kenji\shared\darknet\weight/cifar_autmobile
+
+[■Darknet classifier train @ Windows7]
+学習させてみる
+
+$ export PATH=$PATH:/C/opencv-2.4.13/x86_mingw_gcc/x64/mingw/bin/
+$ ./darknet.exe classifier train data/cifar.data6 cfg/cifar_minin.cfg
+
+5000epoch
+5000, 19.089: 0.073867, 0.079578 avg, 0.000000 rate, 0.421000 seconds, 640000 images
+
+未検出値 avgの部分がエラー率らしい、
+
+92.6%mAP
+ってことになった:-)
+
+カメラ入力してみたが、まぁまぁな推論正解かなぁ～
+$ ./darknet.exe classifier train data/cifar.data6 cfg/cifar_minin.cfg backup6/cifar_minin.weights -c 0
+
+[■なぜかnames=が必要な]
+cat data/cifar.data6
+classes=3
+train = data/cifar/train6.list
+test  = data/cifar/test6.list
+labels= data/cifar/labels6.txt
+backup= backup6/
+top = 2
+names = data/cifar/labels5.txt
+
+※学習時には不要なnames=が推論時には必須

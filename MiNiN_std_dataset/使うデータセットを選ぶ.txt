@@ -1,0 +1,167 @@
+﻿[■機械学習はデータセットが全て]
+だと思う:=)
+
+小さなNiNで特徴のハッキリ分かれたデータセットを使う
+つまり
+興味のあるもの∩興味の無いもの≒０
+を目標にデータセットを選ぶ
+
+※興味の無いものとは
+※カメラ映像ならば出現頻度は高いが興味が無い映像(例えば背景)
+
+人、車、背景の3分類
+特に人画像は顔が画像全体の大部分を占める顔認識用のデータセット
+車はcifar10のもので、車が画像の大部分を占める
+背景は、indoorとoutdoorのもの
+
+
+①Faces
+MITから
+http://vis-www.cs.umass.edu/lfw/
+②automobile
+Darknetから
+https://pjreddie.com/darknet/train-cifar/
+③mit_spat
+MITから
+http://people.csail.mit.edu/torralba/code/spatialenvelope/
+④indoor
+MITから
+http://web.mit.edu/torralba/www/indoor.html
+
+
+[■データセットの数的構成]
+興味のあるもの約15000枚、と興味の無いもの約13000枚
+興味のあるもの約15000枚＝人12000枚、車3000枚
+つまり、
+興味のあるもの：興味の無いもの＝1:1
+
+学習とテストで下記
+▼学習
+$ ../../scripts/checkclass.py labels3.txt train3.list
+*label = labels3.txt
+*list  = train3.list
+labels=3        lists=27921
+          automobile items / total =  3576 /    27921
+              person items / total = 11902 /    27921
+          background items / total = 12443 /    27921
+                       items total = 27921
+ items path
+ 11902 C:/Users/kenji/shared/Darknet/weight/Faces
+ 10000 C:/Users/kenji/shared/Darknet/weight/mit_indoor
+  3576 C:/Users/kenji/shared/Darknet/DarketOnWindowsYOLOv2/data/cifar/test3
+  2443 C:/Users/kenji/shared/Darknet/weight/mit_spat
+
+▼テスト
+$ ../../scripts/checkclass.py labels3.txt test3.list
+*label = labels3.txt
+*list  = test3.list
+labels=3        lists=3014
+          automobile items / total =   424 /     3014
+              person items / total =  1331 /     3014
+          background items / total =  1245 /     3014
+                       items total =  3000
+ items path
+  1331 C:/Users/kenji/shared/Darknet/weight/Faces
+    14 C:/Users/kenji/shared/Darknet/DarketOnWindowsYOLOv2/data/cifar/room
+  1000 C:/Users/kenji/shared/Darknet/weight/mit_indoor
+   245 C:/Users/kenji/shared/Darknet/weight/mit_spat
+   424 C:/Users/kenji/shared/Darknet/DarketOnWindowsYOLOv2/data/cifar/test3
+
+グレースケール画像は悪影響
+
+[■学習とテスト]
+Windows7+Darknet+OpenCV2.4.9
+CNNモデルはMicroNetworkの1層で学習とテスト
+cifar_minin.cfg
+epoch 5000
+rate 0.5
+decay 0.0005
+最終段はavepoolingだけでsoftmaxせずにlogitのまま
+
+▼結果
+loss ≒ 0.08(92%mAP)
+人、車、背景の分類はしきい値0.6ではっきり分類可能
+
+classifier demoモードでカメラ画像を推論した場合
+$ ./darknet.exe classifier demo data/cifar.data3 cfg/cifar_minin.cfg backup3/cifar_minin.weights -c 0
+
+自分の顔の大写しではperson認識50~80%
+窓の外では100%以上
+16 FPS
+
+[cifar_minin.cfg]
+[net]
+batch=128
+subdivisions=1
+height=32
+width=32
+channels=3
+max_crop=32
+min_crop=32
+
+hue=.1
+saturation=.75
+exposure=.75
+
+#learning_rate=0.1
+learning_rate =0.5
+policy=poly
+power=4
+max_batches = 5000
+#max_batches = 15000
+momentum=0.9
+decay=0.0005
+#decay =0.002
+
+# 3x3 32x32->32x32 ->max 1/2 -> 11x11
+[convolutional]
+#batch_normalize=1
+filters=32
+size=3
+stride=1
+pad=1
+activation=leaky
+[max]
+size=3
+stride=3
+
+# 1x1 11x11 -> 11x11
+[convolutional]
+#batch_normalize=1
+filters=32
+size=1
+stride=1
+pad=0
+activation=leaky
+
+# 1x1 11x11 -> 11x11 -> max 1/2 4x4
+[convolutional]
+#batch_normalize=1
+filters=32
+size=1
+stride=1
+pad=0
+activation=leaky
+[max]
+size=3
+stride=3
+
+# 1x1 4x4 -> 4x4
+[convolutional]
+batch_normalize=1
+filters=3
+#filters=10
+size=1
+stride=1
+pad=0
+activation=leaky
+
+[avgpool]
+#size=6
+
+#[softmax]
+#groups=1
+
+[cost]
+type=sse
+

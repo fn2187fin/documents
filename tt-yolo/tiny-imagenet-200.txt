@@ -1,0 +1,107 @@
+tiny-imagenetを分類問題の学習データとし、特長抽出器として使えるか
+
+stanfordで初心者向けに公開しているらしい
+https://tiny-imagenet.herokuapp.com/
+申請不要、200Mぐらいの圧縮ファイル
+
+100,000 train image
+ 10,000 val image
+ 10,000 test image
+
+words.txt idの意味が書かれたファイル
+wnid.txt  darknet classifierでlabelsとして使えるもの
+
+imagenetとは別物で、64x64サイズのイメージが大量にあってclassifierする課題が出されている
+
+クラス分けがタスクなので1枚に対象が大きく写っていて、bboxの教師信号も用意されている
+synsetなどのファイルも一緒にダウンロード出来る
+
+これがVGAサイズであれば、、、惜しい
+
+■darknet classifierを試す
+
+$ ./darknet classifier train ttt3_pre.data ttt3_pre.cfg
+
+ttt3_pre.cfg : 小型化したtiny-yolo-voc.cfgを200クラスclassifier用に修正したもの
+
+./darknet classifier predict ttt3_pre.data ttt3_pre.cfg TTT3_PRE/ttt3_pre_15.weight
+テストコマンドで途中確認したがほとんど予測は当たらず、、、中止
+実行したが、15エポック程度で中止 あまりにクラスが大きすぎる
+
+■10クラスに問題を縮小
+ttt3_pre.cfg最終層をfilter=10としてwnids10.txtとtrain10_t-imagenet.txtを作成
+4900枚の学習データと100枚の検証データ
+ttt3_pre10.data
+classes= 10
+train  = /home/ogura/20076433/tiny_imagenet/tiny-imagenet-200/train10_t-imagenet.txt
+valid  = /home/ogura/20076433/tiny_imagenet/tiny-imagenet-200/val10_t-imagenet.txt
+labels = /home/ogura/20076433/tiny_imagenet/tiny-imagenet-200/wnids10.txt
+backup = TTT3_PRE
+top = 5
+
+※ttt3_pre.cfgの学習パラメータを分類用に修正
+#detector用
+#learning_rate=0.001
+#policy=steps
+#steps=-1,100,20000,30000
+#scales=.1,10,.1,.1
+↓
+learning_rate=0.4
+policy=poly
+power=4
+これでステップ制御ではなく、学習レイトが連続的にどんどん下がる
+
+$ ./darknet classifier train ttt3_pre10.data ttt3_pre.cfg
+...
+2776, 72.516: 0.465975, 0.449501 avg, 0.108936 rate, 2.273896 seconds, 355328 images
+
+学習結果 2776 epoch
+$ ./darknet classifier valid ttt3_pre10.data ttt3_pre.cfg TTT3_PRE/ttt3_pre_72.weights
+...
+89: top 1: 0.677778, top 5: 0.944444
+90: top 1: 0.681319, top 5: 0.945055
+91: top 1: 0.673913, top 5: 0.945652
+92: top 1: 0.677419, top 5: 0.946237
+93: top 1: 0.680851, top 5: 0.946809
+94: top 1: 0.673684, top 5: 0.947368
+95: top 1: 0.677083, top 5: 0.947917
+96: top 1: 0.680412, top 5: 0.948454
+97: top 1: 0.683673, top 5: 0.948980
+98: top 1: 0.686869, top 5: 0.949495
+99: top 1: 0.690000, top 5: 0.950000
+
+100枚の検証データでは top5:95% top1:69% とまぁまぁな結果
+
+■15クラスに問題を縮小
+ttt3_pre.cfg最終層をfilter=15としてwnids15.txtとtrain15_t-imagenet.txtを作成
+人に絡む画像を選んだ15クラス（目視で確認）なので画像が似ている
+7900枚の学習データと100枚の検証データ
+ttt3_pre15.data
+classes= 15
+train  = /home/ogura/20076433/tiny_imagenet/tiny-imagenet-200/train15_t-imagenet.txt
+valid  = /home/ogura/20076433/tiny_imagenet/tiny-imagenet-200/val15_t-imagenet.txt
+labels = /home/ogura/20076433/tiny_imagenet/tiny-imagenet-200/wnids15.txt
+backup = TTT3_PRE
+top = 5
+
+$ ./darknet classifier train ttt3_pre15.data ttt3_pre.cfg
+...
+7270, 125.751: 0.717736, 0.645117 avg, 0.239046 rate, 2.912086 seconds, 930560 images
+
+学習結果 7270 epoch
+$ ./darknet classifier valid ttt3_pre15.data ttt3_pre.cfg TTT3_PRE/ttt3_pre_119.weights
+
+93: top 1: 0.319149, top 5: 0.765957
+94: top 1: 0.315789, top 5: 0.768421
+95: top 1: 0.322917, top 5: 0.770833
+96: top 1: 0.319588, top 5: 0.773196
+97: top 1: 0.316327, top 5: 0.775510
+98: top 1: 0.323232, top 5: 0.777778
+99: top 1: 0.320000, top 5: 0.780000
+
+100枚の検証データでは top5:78% top1:32% とヒドイ結果
+
+■初期ウェイトに使用してttt3.cfgの学習
+つづく
+
+

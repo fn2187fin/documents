@@ -1,0 +1,61 @@
+デバイスドライバーを使用せずroot権限で/dev/memへアクセスすることで、
+
+・FPGA内のカスタム論理へのレジスタアクセスなどの簡易なデバッグができる
+
+http://kyoto-maker.hatenablog.com/entry/2015/02/07/160057
+
+-----------------------------------------------------
+[HPSから見える各スレーブのアドレスマップ]
+FPGASLAVES   0xC000 0000
+PERIPHERAL   0xFC00 0000
+LWFPGASLAVES 0xFF20 0000
+
+CycloneV Hard Processor System Technical Reference Manual
+http://www.altera.com/literature/hb/cyclone-v/cv_5v4.pdf
+
+-----------------------------------------------------
+[ツールdevmem2]
+/dev/memをopen及びmmapすることで、特定の仮想アドレスにアクセスできる。
+devmem2ツールーはこの処理を行うツールでインストールは下記
+$ wget http://download.atmark-techno.com/misc/accessing-any-address/devmem2.tar.gz
+$ tar zxvf devmem2.tar.gz
+$ cd devmem2
+$ arm-linux-gnueabihf-gcc devmem2.c -o devmem2
+
+HPSのアドレスマップに従って、DE1SOC上でsystem IDを読むには、
+devmem2 0xFF210000 w
+0xA0C00001
+でワード(4B)アクセスができる。その他、h(2B), b(B)のオプションあり。
+
+書き込みは、
+devmem2 0xFF200000 w 0xFFFFFFFF
+などでワードをオール１に書き込むなど簡単なIF
+root権限なのでどこでも書けそうで危ない。
+
+-----------------------------------------------------
+※BSPによってはdevmem2でのアクセスが無効なケースあり
+例えばsystem IDの読み出しで０が返るなどのあり得ない結果になる
+
+Web上ではaltera系ドライバのBUGとの見解もある。
+このkernel BUGに相当しているのかを確認するには、
+dmesg | grep fpga
+としてデバイスドライバーの起動時エラーメッセージを観察すること。
+
+①DE1_SOC_FB
+FrameBufferをFPGAに実装したBSP
+system IDの読み出しで０が返る。
+
+このBSPでは、/sys/class/fpga-bridge/以下にデバイスファイルが作成されない。
+dmesg|grep fpgaでもドライバーの起動時エラーは無い。
+
+本来は、
+fpga2hps hps2fpga lwhps2fpga
+が作成され、各モジュール以下に、
+device enable power subsystem uevent
+の構成になる。
+
+/dev/memをからデバイスページへアクセスするには、そのページのデバイスファイルが必要なのか。
+
+このBSPはMSEL=00000
+の必要があり、FPGA内のalt_vipを使用してXwindow系が動作するBSPなので、
+HPSからFPGAのコンフィグレーションができないのかもしれない。

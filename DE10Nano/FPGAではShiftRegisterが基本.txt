@@ -1,0 +1,175 @@
+FPGAではShiftRegisterが基本
+らしい
+
+■Darknet(ttt5_224_160.cfg)の演算時間をCPU/FPGA/CPU+OpenBLASで比較したところ、
+
+　GEMMの基本演算アルゴ(im2col型入力)＠CPU　＞　OpenBLAS最適化
+　GEMMの基本演算アルゴ(im2col型入力)＠CPU　＞　OpenCLでの基本演算アルゴ(col-majorとhalf)
+
+CPUの基本演算アルゴに比べてFPGAは多少速いが、
+
+　OpenCLでの基本演算アルゴ　＞　OpenBLAS最適化
+
+その差は3倍FPGAが遅い結果となった
+
+FPGA向けのアルゴ最適化はcol-major化とhalf化だけ
+
+■FPGA向けのアルゴ最適化では、ShiftRegisterを使うのが基本らしいので、
+ttt5_224_160.cfgの初段のconvolutionのみを想定して試してみる
+①コピーだけ(基準として)
+②シフトレジスタを使うコピー
+③シフトしながら積和する(≒GEMMな演算)
+の3ケース
+
+■結論
+
+latency比較では、
+OpenCLでの基本演算アルゴ(col-majorとhalf) ＜　シフトレジスタを利用したアルゴ(sr1fmm.cl)
+つまりシフトレジスタは遅い、FPGAが満杯、デカイ、使えない;-<
+
+■まずは転送性能(コピー)から
+△global A -> altera_channel -> global Bへコピー
+memcp.cl
+5.00MBPSぐらい
+M/N/K = 107520  107520  107520: :       real time =   22.321 msec       :107070 match  4.817MBPS
+M/N/K = 107520  107520  107520: :       real time =   22.500 msec       :107070 match  4.779MBPS
+M/N/K = 107520  107520  107520: :       real time =   22.250 msec       :107070 match  4.832MBPS
+M/N/K = 107520  107520  107520: :       real time =   22.072 msec       :107070 match  4.871MBPS
+M/N/K = 107520  107520  107520: :       real time =   22.732 msec       :107070 match  4.730MBPS
+M/N/K = 107520  107520  107520: :       real time =   23.515 msec       :107070 match  4.572MBPS
+M/N/K = 107520  107520  107520: :       real time =   22.149 msec       :107070 match  4.854MBPS
+M/N/K = 107520  107520  107520: :       real time =   22.122 msec       :107070 match  4.860MBPS
+real time =   179.660310 msec
+
+■シフトレジスタを使うコピー
+△global A -> shift register -> global Bへ書き込み
+srrw.cl
+0.25MBPS
+In Program kernel[0] name = conv　<=このkernelにshift-registerが入っている
+In Program kernel[1] name = mem_read
+In Program kernel[2] name = mem_write
+M/N/K = 107520  107520  107520: :       real time =  440.079 msec       :107070 match  0.244MBPS
+M/N/K = 107520  107520  107520: :       real time =  439.516 msec       :107070 match  0.245MBPS
+M/N/K = 107520  107520  107520: :       real time =  440.043 msec       :107070 match  0.244MBPS
+M/N/K = 107520  107520  107520: :       real time =  439.251 msec       :107070 match  0.245MBPS
+M/N/K = 107520  107520  107520: :       real time =  439.329 msec       :107070 match  0.245MBPS
+M/N/K = 107520  107520  107520: :       real time =  440.223 msec       :107070 match  0.244MBPS
+M/N/K = 107520  107520  107520: :       real time =  439.308 msec       :107070 match  0.245MBPS
+M/N/K = 107520  107520  107520: :       real time =  448.926 msec       :107070 match  0.240MBPS
+real time =  3526.674710 msec
+遅い;-<
+
+△global A -> shift register -> shift register -> global Bへ書き込み
+0.24MBPS
+遅い;-<   けど、、2段目のshift registerは速度悪化の影響が出ていない？
+
+ならば、
+
+△global A -> shift register -> shift register -> shift register -> shift register -> global Bへ書き込み
+srrw4.cl
+0.24MBPS
+In Program kernel[0] name = conv
+In Program kernel[1] name = conv2
+In Program kernel[2] name = conv3
+In Program kernel[3] name = conv4
+In Program kernel[4] name = mem_read
+In Program kernel[5] name = mem_write
+M/N/K = 107520  107520  107520: :       real time =  440.822 msec       :107070 match  0.244MBPS
+M/N/K = 107520  107520  107520: :       real time =  440.824 msec       :107070 match  0.244MBPS
+M/N/K = 107520  107520  107520: :       real time =  440.313 msec       :107070 match  0.244MBPS
+M/N/K = 107520  107520  107520: :       real time =  441.070 msec       :107070 match  0.244MBPS
+M/N/K = 107520  107520  107520: :       real time =  440.762 msec       :107070 match  0.244MBPS
+M/N/K = 107520  107520  107520: :       real time =  545.741 msec       :107070 match  0.197MBPS
+M/N/K = 107520  107520  107520: :       real time =  440.035 msec       :107070 match  0.244MBPS
+M/N/K = 107520  107520  107520: :       real time =  440.356 msec       :107070 match  0.244MBPS
+real time =  3629.924240 msec
+4段のshift registerでも、転送速度はおなじぃ
+
+この性質をうまく活用しろ！ってこと
+
+△global A -> convolution -> global B
+memcpdef.cl(書き換えてしまったので残っていない)
+転送部分はintel_channelを利用
+intel_channelの幅：float16
+コピーのみ
+In Program kernel[0] name = mem_read
+In Program kernel[1] name = mem_write
+M/N/K = 107520  573440  107520: :       real time =   74.673 msec       :107070 match  5.759MBPS
+M/N/K = 107520  573440  107520: :       real time =   72.928 msec       :107070 match  5.897MBPS
+M/N/K = 107520  573440  107520: :       real time =   73.463 msec       :107070 match  5.854MBPS
+M/N/K = 107520  573440  107520: :       real time =   72.925 msec       :107070 match  5.898MBPS
+M/N/K = 107520  573440  107520: :       real time =   73.619 msec       :107070 match  5.842MBPS
+M/N/K = 107520  573440  107520: :       real time =   74.720 msec       :107070 match  5.756MBPS
+M/N/K = 107520  573440  107520: :       real time =   73.317 msec       :107070 match  5.866MBPS
+M/N/K = 107520  573440  107520: :       real time =   72.794 msec       :107070 match  5.908MBPS
+real time =   588.440380 msec
+1.47MBPS
+
+△global A -> convolution -> global B
+memcpdef.cl
+転送部分はintel_channelを利用
+intel_channelの幅：Float32
+ typedef struct { float s[32]; } Float32
+コピーのみ
+
+In Program kernel[0] name = mem_read
+In Program kernel[1] name = mem_write
+M/N/K = 107520  573440  107520: :       real time =   73.640 msec       :107070 match  5.840MBPS
+M/N/K = 107520  573440  107520: :       real time =   71.995 msec       :107070 match  5.974MBPS
+M/N/K = 107520  573440  107520: :       real time =   72.786 msec       :107070 match  5.909MBPS
+M/N/K = 107520  573440  107520: :       real time =   72.546 msec       :107070 match  5.928MBPS
+M/N/K = 107520  573440  107520: :       real time =   71.886 msec       :107070 match  5.983MBPS
+M/N/K = 107520  573440  107520: :       real time =   72.445 msec       :107070 match  5.937MBPS
+M/N/K = 107520  573440  107520: :       real time =   72.820 msec       :107070 match  5.906MBPS
+M/N/K = 107520  573440  107520: :       real time =   72.614 msec       :107070 match  5.923MBPS
+real time =   580.732250 msec
+1.48MBPS
+Float16からのゲイン小
+
+■シフトしながら積和する
+△global A -> shift register -> convolution -> global B
+sr1f.cl
+転送部分はintel_channelを利用
+intel_channelの幅：読込みfloat3　/　書出しfloat16
+総和計算
+以降conv kernelはautorun
+
+0.38MBPSぐらい
+In Program kernel[0] name = mem_read
+In Program kernel[1] name = mem_write
+M/N/K = 107520  1720320 107520: :       real time =  276.727 msec       :107070 match  1.554MBPS
+M/N/K = 107520  1720320 107520: :       real time =  275.778 msec       :107070 match  1.560MBPS
+M/N/K = 107520  1720320 107520: :       real time =  275.077 msec       :107070 match  1.563MBPS
+M/N/K = 107520  1720320 107520: :       real time =  275.136 msec       :107070 match  1.563MBPS
+M/N/K = 107520  1720320 107520: :       real time =  275.020 msec       :107070 match  1.564MBPS
+M/N/K = 107520  1720320 107520: :       real time =  275.165 msec       :107070 match  1.563MBPS
+M/N/K = 107520  1720320 107520: :       real time =  275.067 msec       :107070 match  1.564MBPS
+M/N/K = 107520  1720320 107520: :       real time =  275.514 msec       :107070 match  1.561MBPS
+real time =  2203.484210 msec
+
+△global A -> shift register -> convolution -> global B
+sr1fmm.cl
+転送部分はintel_channelを利用
+intel_channelの幅：読込みFloat3　/　書出しFloat16
+ typedef struct { float s[3]; } Float3
+ typedef struct { float s[16]; } Float16
+constant 領域にウェイトを保存して積和演算(Util==108%で限界)
+
+In Program kernel[0] name = mem_read
+In Program kernel[1] name = mem_write
+M/N/K = 107520  573440  107520: :       real time =  146.396 msec       :107070 match  2.938MBPS
+M/N/K = 107520  573440  107520: :       real time =  146.145 msec       :107070 match  2.943MBPS
+M/N/K = 107520  573440  107520: :       real time =  145.895 msec       :107070 match  2.948MBPS
+M/N/K = 107520  573440  107520: :       real time =  144.736 msec       :107070 match  2.971MBPS
+M/N/K = 107520  573440  107520: :       real time =  146.923 msec       :107070 match  2.927MBPS
+M/N/K = 107520  573440  107520: :       real time =  145.559 msec       :107070 match  2.955MBPS
+M/N/K = 107520  573440  107520: :       real time =  145.258 msec       :107070 match  2.961MBPS
+M/N/K = 107520  573440  107520: :       real time =  145.963 msec       :107070 match  2.946MBPS
+real time =  1166.875360 msec
+0.73MBPSぐらい
+
+convolution相当な積和演算をするケース
+実行時間の絶対値は150msecで、初段のgemm演算部分と考えると遅い
+シフトレジスタを多段に構成しても全体のスループットが変わらない性質を利用できれば、
+convolution->maxpool->convolution...としても、スループットは確保できるのかもしれない
+しかし、1段のConvolutionだけでUtilが100%を超えてしまい回路が入れられない;-<

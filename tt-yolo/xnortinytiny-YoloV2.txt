@@ -1,0 +1,228 @@
+tinytiny-YoloV1へxnor演算を入れて試す　xnortinytiny-YoloV1
+※darknetv2+xnorでCPU負荷が大きくなり、GPU演算がスカスカな現象あり、原因不明
+※HA-8000+V100で処理させるとGPUがパンパン、、CUDAバージョン違いが原因か？CPUパワーか？
+
+■yolov2-tiny-voc.cfg　基準として
+darknet detector recall cfg/voc.data yolov2-tiny-voc.cfg yolov2-tiny-voc.weights　←Darknet供給のウェイト
+検出率
+  [学習評価マトリクス]
+  学習DS    　評価DS    　IOU Recall
+  imdb_body   imdb        74% 98%
+  imdb_body   wiki        71% 97%
+  imdb_body   VOC2007     63% 79%
+  imdb_body   VOC2012     64% 81%
+
+カメラ
+FP少なく精度が高い
+20カテゴリ
+0.8FPS
+
+yolov2-tiny-voc.cfgをFTune
+darknet detector train cfg/voc.data yolov2-tiny-voc.cfg XRTYL_PRE/xrt-yolo_pre15_conv10.weights
+34901: 12.854564, 13.288654 avg ←比較的高い値だが20カテゴリであることと関係するのか
+検出率
+  [学習評価マトリクス]
+  学習DS    　評価DS    　IOU Recall
+  imdb_body   imdb        70% 96%
+  imdb_body   wiki        71% 99%
+  imdb_body   VOC2007     57% 70%
+  imdb_body   VOC2012     58% 70%
+
+カメラ
+FP少なく精度が高い
+20カテゴリ
+0.8FPS
+
+Darknetが供給するウェイトの性能とは10%近い差がある
+VOCで、55%以上のIoU正解率、70%以上のRecall正解率であれば、
+カメラ画像テストでは非常に良好な結果となるのだろうか
+
+■xtt4.cfgでの試行
+  xtt4.cfg(3x360x360⇒7x9x9)
+  layer2~7までをxnor指定
+  [region] random=0
+ttt4.cfgを2値化演算Convolutional layerで計算する
+ロス減少は微小で　ロス7.0前後でフラフラ、、、
+xyolo.test.cfgのロスが20classesで1.8なので、、、
+
+■xtt4_pre.cfgによるFineTune
+  $ ./darknet classifier train data/xtt/xtt4_pre15.data cfg/xtt4_pre.cfg
+  FineTune用にxtt4をtiny-imagenetで15クラス分類学習
+15分類タスク tiny-imagenetでxtt4_pre.cfgを学習、初期値作成
+./darknet classifier train xtt4_pre15.data xtt4_pre.cfg > job_xtt4_pre15.log
+4539, 157.025: 0.925991, 0.924457 avg, 0.000186 rate, 4.695159 seconds, 1161984 images
+学習完 partial完 ttt4_pre_conv4.weights
+99: top 1: 0.150000, top 3: 0.340000
+完了
+
+■xtt-yolo.cfgでのtiny-yolov2+xnor試行
+  xyolo.test.cfgで現れた学習効果(ロス1.8程度)が、tiny-yolov2のxnor適用で再現するか？
+  xtt4.cfgではtiny-yolov2をxnor+小型化したことにより、ロスが7.0程度から低減できないのか
+  xnor化だけ(=xtt-yolo.cfg)なら、ロスは改善されるのか？
+  別原因でロスが未達なのか？
+  $ ./darknet detector train xttyl_imdb_body.data xtt-yolo.cfg
+  判定
+
+■評価計画
+binary化のパターン
+  B:binary(±1)
+  mean:xMean to image or wreights for scaling of B
+　R:real
+
+  ex. filename means weights-inputs-outputs
+      x:mean(+/-mean)
+      b:bit(+/-1)
+      r:float
+      t:outputs are 7
+      'xrt' means weight is +/-mean, input is float, 7outputs
+
+   W  Norm  Fm Norm  loss  fineT           model  F.Tune
+※ B  mean   B    1   1.8         xyolo.test.cfg         no-name detector layer is FC and Float
+   B     1   B    1               bbt-yolo.cfg           Binary Neural Net
+   B  mean   B    1   13.         xtt-yolo.cfg    No     no-name 
+   B     1   B mean               bxt-yolo.cfg           no-name
+   B  mean   B mean   15.         xxt-yolo.cfg           Xnor Net(xnor+x_mean)
+   B     1   R    1               brt-yolo.cfg           Binary Connect
+   B  mean   R    1   10.         xrt-yolo.cfg    No     no-name
+   B  mean   R    1   7.6         xrt-yolo.cfg    Yes    no-name
+   B  mean   R    1   8.1         xrt-yolo3.cfg   No     only last layer is float oterwise binary weight of xrt-yolo.cfg
+
+b:(-1/+1) binary
+x:(-mean/+mean) binary
+r:real
+
+■評価
+△検出率 基準(再掲)　ttt4.cfgのfinetune
+  [学習評価マトリクス]
+  学習DS    　評価DS    　IOU Recall
+  imdb_body   imdb        64% 87%
+  imdb_body   wiki        62% 85%
+  imdb_body   VOC2007     35% 38%
+  imdb_body   VOC2012     43% 54%
+
+△xxt-yolo.cfg
+darknet detector recall xxt-yolo_imdb_body.data xxt-yolo.cfg XXTYL_IMDB_BODY/xxt-yolo_minloss.weights
+検出率
+  [学習評価マトリクス]
+  学習DS    　評価DS    　IOU Recall
+  imdb_body   imdb        67% 92%
+  imdb_body   wiki        64% 93%
+  imdb_body   VOC2007     35% 36%
+  imdb_body   VOC2012     45% 54%
+カメラ
+正面、横向き、後ろ向きでヒト認識する
+-thresh .8としてもFPが目立つ
+FPが多すぎて使い物にならない
+1.1FPS
+
+△xxtb-yolo.cfg(BatchNormを入れたもの)
+darknet detector recall xxtb-yolo_imdb_body.data xxtb-yolo.cfg XXTBYL_IMDB_BODY/xxtb-yolo_minloss.weights
+検出率
+  [学習評価マトリクス]
+  学習DS    　評価DS    　IOU Recall
+  imdb_body   imdb        69% 93%
+  imdb_body   wiki        70% 94%
+  imdb_body   VOC2007     34% 27%
+  imdb_body   VOC2012     42% 51%
+
+カメラ
+-thresh .83としてもFPが目立ち、ほぼすべての画像をヒトと認識している
+FPが多すぎて使い物にならない
+1.1FPS
+
+△xtt-yolo.cfg
+darknet detector recall xttyl_imdb_body.data xtt-yolo.cfg XTTYL_IMDB_BODY/xtt-yolo_minloss.weights
+検出率
+  [学習評価マトリクス]
+  学習DS    　評価DS    　IOU Recall
+  imdb_body   imdb        66% 90%
+  imdb_body   wiki        65% 94%
+  imdb_body   VOC2007     34% 30%
+  imdb_body   VOC2012     42% 49%
+カメラ
+
+△xrt-yolo.cfg
+darknet detector recall xrtyl_imdb_body.data xrt-yolo.cfg XRTYL_IMDB_BODY/xrt-yolo_minloss.weights
+検出率
+  [学習評価マトリクス]
+  学習DS    　評価DS    　IOU Recall
+  imdb_body   imdb        73% 98%
+  imdb_body   wiki        72% 96%
+  imdb_body   VOC2007     36% 41%
+  imdb_body   VOC2012     43% 49%
+カメラ
+正面、横向き、後ろ向きでヒト認識する
+-thresh デフォルトでは、FPは大目だが、xtt-yolo.cfgよりはFPは目立たない
+1.1FPS
+
+ファインチューン
+darknet detector train xrtyl_imdb_body_tinet.data xrt-yolo.cfg XRTYL_PRE/xrt-yolo_pre15_conv10.weights job_xrtyl_imdb_body_tinet1.log
+学習パラメータ
+# import form setting of xyolo.test.cfg
+object_scale=1
+noobject_scale=.5
+class_scale=1
+coord_scale=5
+
+darknet detector recall xrtyl_imdb_body.data xrt-yolo.cfg XRTYL_IMDB_BODY_TINET/xrt-yolo_minloss.weights
+検出率
+  [学習評価マトリクス]
+  学習DS    　評価DS    　IOU Recall
+  imdb_body   imdb        73% 98%
+  imdb_body   wiki        71% 97%
+  imdb_body   VOC2007     39% 45%
+  imdb_body   VOC2012     46% 60%
+カメラ
+正面、横向き、後ろ向きでヒト認識する
+1.1FPS
+
+△xrt-yolo3.cfg 最終Conv層のみbinrary
+darknet detector train xrtyl_imdb_body_tinet.data xrt-yolo3.cfg  > job_xrtyl_imdb_body3.log
+darknet detector recall xrtyl_imdb_body_tinet.data xrt-yolo3.cfg XRTYL_IMDB_BODY/xrt-yolo3_minloss.weights
+※ここから先のVOC2012,VOC2007について検証データセットを変更した
+検出率
+  [学習評価マトリクス]
+  学習DS    　評価DS    　IOU Recall
+  imdb_body   imdb        71% 97%
+  imdb_body   wiki        72% 97%
+  imdb_body   VOC2007     34% 30%
+  imdb_body   VOC2012     29% 22%
+カメラ
+FPが多すぎ　-thresh .4
+TPは精度高い
+1.1FPS
+
+△xrt-yolo3.cfg 最終Conv層のみbinrary FTune
+tiny-imagenet学習ウェイトでimdbをファインチューニング
+
+darknet classifier train xrt-yolo_pre15.data xrt-yolo3_pre15.cfg > job_xrtyl_pre15.log
+7000, 60.541: 0.847698, 0.827275 avg
+darknet partial xrt-yolo3_pre15.cfg XRTYL_PRE/xrt-yolo3_pre15.weights XRTYL_PRE/xrt-yolo3_pre15_conv13.weights 13
+darknet detector train xrtyl_imdb_body_tinet.data xrt-yolo3.cfg XRTYL_PRE/xrt-yolo3_pre15_conv13.weights >job_xrtyl_imdb_body_tinet.log
+19596: 6.846411, 8.021914 avg
+検出率
+  [学習評価マトリクス]
+  学習DS    　評価DS    　IOU Recall
+  imdb_body   imdb        72% 95%
+  imdb_body   wiki        72% 95%
+  imdb_body   VOC2007     34% 32%
+  imdb_body   VOC2012     30% 25%
+カメラ
+TPもFPもそこそこ
+イスやジャケットをヒトと誤るFP目立つ場合もある
+1.1FPS
+
+■FPとFineTuneの関係
+FPが目立ち、使い物にならないケースが多々あるが、これらは皆スクラッチ学習
+tiny-imagenetデータセットを使い分類器を学習してからFineTuneするとFPが目立たなくなる
+非線形の分類器なので、未知データに対する反応は予測できないが、大量の分類データで分類学習することで対策できるのかもしれない
+また、汎化性能面でも大量の分類学習は効果があるのかもしれない
+
+Imagenet 1,000カテゴリを用いてbinary-networkの分類器を学習してから、検出器の学習をするのがベターなのだろう
+
+■imdb/wikiで精度が出ても、VOCで精度が出ないワケ
+VOCデータセットでは、
+・ヒトとヒト、ヒトとモノが重なる画像が問題として多い
+　このとき後ろのヒトに体の一部を隠されたヒトをネガであるとして扱うと問題に矛盾が起きる
+よって、矛盾する問題を扱うことの無いように、重なりを学習できるネットワークが必要である
+※問題をどのようなネットワークで扱うのかに拠って、問題に矛盾がでる場合があるということ

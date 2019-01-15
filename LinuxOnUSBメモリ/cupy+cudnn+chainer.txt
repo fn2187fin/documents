@@ -1,0 +1,49 @@
+cupyとcudnnのインストールが済んだところで、chainerをGPUで使えるか試す
+
+[■chainer 2.0.2 のインストール]
+pip install chainer==2.0.2 --no-cache
+...
+Successfully installed chainer-2.0.2 cupy-1.0.3
+あららcupyのバージョンが下げられてimportできなくなってる
+
+cupyを入れ直してみると
+pip uninstall cupy
+pip install cupy --no-cache
+
+python -c "import cupy;imort cupy.cudnn"
+OKだな
+chainerがcupy1.0.3にダウングレードされて、しかもそのcupyがcudnnを認識できない状態
+
+[■chainer最新版でインストール]
+試しに最新v3.1.0で試す
+
+pip install chainer --no-cache
+...
+Successfully installed chainer-3.1.0
+おやこちらはcupyのバージョンを気にしませんね
+
+では、mnistをテストしてみると
+wget https://github.com/chainer/chainer/archive/v3.1.0.tar.gz
+tar xzf v3.1.0.tar.gz
+python chainer-3.1.0/examples/mnist/train_mnist.py -g 0
+
+動いてます、、、速いです
+
+nvidia-smi -l
+GPU使ってます;-)
+
+古いcupyはcuda-9.0とかcudnnと相性が悪いみたい
+chainerV2.0.2を使い続けるのは無理かもしれねぇ〜;-<
+
+chainerV2.0.2なんかを再インストールすれば、、、GPUが使えなくなる状況になってしまったが
+
+[■chainer 3.1.0 でchainer 2.0.2のサンプルを動かす]
+
+wget https://github.com/chainer/chainer/archive/v2.0.2.tar.gz
+tar xzf v2.0.2.tar.gz
+python chainer-2.0.2/examples/mnist/train_mnist.py -g 0
+
+ふつーに動きました
+v2.xはv1.xと互換性が無かったが、v3.xはv2.xとアッパーコンパチみたい
+よかったぁ;-)
+

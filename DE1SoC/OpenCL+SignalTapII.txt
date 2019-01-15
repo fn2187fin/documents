@@ -1,0 +1,15 @@
+OpenCL環境では、
+・linuxブート時にUBootからFPGAコンフィギュレーションされる
+・UBoot後のlinuxドライバーによりデバイスが初期設定される
+・linuxドライバーによる初期設定が必要なFPGA論理はSignalTapの標準的な手順では信号観測できない
+
+このような特殊ケースでSignalTapを利用するには、
+・クロックと観測信号の指定
+・デザインのコンパイル
+・コンパイル結果のRBFファイルをDE1SOCに転送しlinuxブート　←ここが特殊
+・SignalTapのScanChainボタンでJtagチェーンを再認識
+・Run Analyzerで波形取得
+の手順となり、標準的な使用方法とは異なる。
+
+※SignalTapのProgram DeviceボタンでFPGAのコンフィギュレーションを行うと、FPGA論理内のレジスタ値が初期化されて、linuxドライバーでのレジスタ再設定が必要になるが、linuxドライバーを個別に呼び出すのは難しい。
+linuxからのレジスタ設定が不要なFPGA論理ではこの問題は発生しない。

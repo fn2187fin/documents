@@ -1,0 +1,10 @@
+LXDE版のDebianカーネルは
+3.12.0
+だが、video for linuxが組み込まれておらずカーネルの再構築が必要
+
+buildツールのインストールを試みるが、precise以外のDebianリポジトリは依存関係が壊滅的状況
+
+preciseではNcursesがインストールできず、よってmake menuconfigが動作しない。
+
+結局ARM上でのカーネル再構築はできない
+

@@ -1,0 +1,48 @@
+[■XNOR-Net MNIST]
+https://github.com/rarilurelo/XNOR-Net
+↑ここを修正してmnistを試す
+
+net.pyの中にあるMnistBWCNNをアンコメント
+沢山のミスがあるな;-<動くんかいな
+
+# mnist_cnn.py
+カットandトライ
+
+最終層のBatchNormalizationを外す
+bst.bstなんて関数が無い、、、bst_xnor.bst_xnorかな？
+bst_xnor.pyの中もbst_xnorがbst_xonrと書かれてる、タイポ？直す
+
+import weight_clip
+optimizer.add_hook(weight_clip.WeightClip())
+こんなものは無いから、コメントアウト
+decayを掛けたいだけだろうから影響なしか
+
+modelの保存を追加
+--learnNオプションを追加して学習データ数を制御
+
+学習開始
+# mnist_cnn.py -l 1800 -b 100
+で0.5img/secらしく3時間で3epoch回り、Testが90%を超えたところで終了
+
+推定スクリプトを作る
+# infer_mnist.py
+serializer.load_npzでモデルをロード
+特に推定結果を取り出すところでnet.py内のBatchNormalizationが悪さをしてい 
+るらしくコメントアウト
+
+推定は
+p = model.predictor(x)
+p.data.argmax() これが推定のインデックスで最後の層10ノードの最大値のイン 
+デックスを示す
+
+適当にx_test[0:10]の推定結果と y_test[0:10]を比較する
+...
+確かに90%ぐらいは正解しているな！:-)
+終わり
+
+[■GPUで動かす]
+GTX1080の載ったPCで動かす
+CPUとGPU(CUDA)の動きが一致している保証は無いが、、、
+# mnist_cnn.py -g 0
+速い速い:-)
+epoch数が大きいので、正解率も上がって98%とか、、、

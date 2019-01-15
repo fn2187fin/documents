@@ -1,0 +1,46 @@
+qemu-arm-staticを試してみた
+
+qemuには2モードあって、
+・ユーザーモード
+・システムモード
+らしい
+
+ユーザーモードはなんちゃってエミュレータで、OSレスをエミュレート
+システムモードは本格的にHWを意識してOSも動作する
+
+[ユーザーモードのテスト]
+hello worldなmain.cを
+# arm-linux-gnueabi-gcc main.c -o sample # qemu-arm-static sample
+/bin/ld-linux.so: No such file or directory
+意味わからんが、OSレスなのでprintfなどは動かない
+
+では、全部一式まとめて動かすと
+# arm-linux-gnueabi-gcc main.c -o sample -static # qemu-arm-static sample hello world
+動きます:-)
+
+OSレスな環境ではな～んもならないんで次
+
+[システムモードのテスト]
+https://people.debian.org/~aurel32/qemu/armel/
+↑からイメージをDLすると、
+・コンソールモード
+・デスクトップモード
+のarm上linuxをエミュレートできる、ふむふむ、いい感じ
+
+root/rootかuser/userでloginできる
+ほぉ～
+
+どうやってsampleを転送するのか？ssh、ftp、scpなどが使えるらしい
+# ifconfig -a
+eth0  10.0.2.15
+らしいんで、sshでつなごうと
+# ssh 10.0.2.15 ... Connection refused
+ありゃりゃ、なんでだ？telnetもftpもダメだ;-<
+
+ん～っと10.0.2.15って、ありゃ、VirtualBox上のUbuntuと同じIPアドレスだ
+では変更してみる
+# ifconfig eth0 10.0.2.16 netmask 255.255.255.0
+やっぱsshもftpもダメ、さらに悪化してpingもダメになった
+
+結論的には、
+"VM上でのqemu-system-staticは動くけど通信できないんで意味なし;-o"

@@ -1,0 +1,49 @@
+python環境構築
+
+①git環境設定
+
+vi ~/.gitconfig
+
+ファイル内容：
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[http]
+        proxy = http://[LDAP]:[PASS]@iproxy03.intra.hitachi.co.jp:8080
+[https]
+        proxy = http://[LDAP]:[PASS]@iproxy03.intra.hitachi.co.jp:8080
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+②pyenv 環境　clone
+git clone https://github.com/yyuu/pyenv.git ~/.pyenv
+
+
+③-1 .bashrc追記 (pyenv)
+
+export PYENV_ROOT="${HOME}/.pyenv"
+if [ -d "${PYENV_ROOT}" ]; then
+    export PATH=${PYENV_ROOT}/bin:$PATH
+    eval "$(pyenv init -)"
+fi
+
+③-2 .bashrc追記 (httpプロキシ)
+export https_proxy="http://[LDAP]:[PASS]@iproxy03.intra.hitachi.co.jp:8080/"
+export  http_proxy="http://[LDAP]:[PASS]@iproxy03.intra.hitachi.co.jp:8080/"
+export   ftp_proxy="http://[LDAP]:[PASS]@iproxy03.intra.hitachi.co.jp:8080/"
+export HTTPS_PROXY="http://[LDAP]:[PASS]@iproxy03.intra.hitachi.co.jp:8080/"
+export  HTTP_PROXY="http://[LDAP]:[PASS]@iproxy03.intra.hitachi.co.jp:8080/"
+export   FTP_PROXY="http://[LDAP]:[PASS]@iproxy03.intra.hitachi.co.jp:8080/"
+
+③-3 .bashrc追記 (pythonに対して、opencvのパスを追加)
+
+export PYTHONPATH=/usr/local/lib/python2.7/site-packages:/usr/local/cuda/lib64/:/usr/local/cuda/include/:$PYTHONPATH
+
+
+④python 環境構築 
+pyenv install anaconda-2.4.0
+pyenv global anaconda-2.4.0
+pip install chainer
+
+⑤python　実行
+python *.py
+
+

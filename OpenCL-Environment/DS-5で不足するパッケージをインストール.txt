@@ -1,0 +1,12 @@
+Intel FPGA SDK for OpenCL
+Quartus
+DS-5(sudo /opt/intelFPGA/18.0/embedded/ds5_installer/install.sh)
+この順序でインストールを続けると、DS-5でライブラリが不足してますよ～と警告がでる
+
+↓ここに解決策がある
+http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.faqs/ka14522.html
+
+それぞれのOSに合わせて、スクリプトを実行する
+ds-deps-ubuntu_64.sh
+ds-deps-rh6_64.sh
+など

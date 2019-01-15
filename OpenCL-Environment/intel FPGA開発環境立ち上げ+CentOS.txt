@@ -1,0 +1,98 @@
+Intel FPGA SDK for OpenCL + Windows
+
+CentOS上でホスト、デバイスのコンパイルを試す
+
+■OpenCL開発環境 DE10-Nanoの手順書からインストール
+まず
+DE10-Nano_OpenCL_BSP_1.0.tar.gz
+ダウンロードして展開
+以下、terasic DE10NanoのBSP_OpenCL/DE10_Nano_OpenCL.pdf手順に従いLinux版をインストール
+バージョンを18.0で統一
+
+①Install Intel Quartus Prime and OpenCL SDK
+②Install Intel SoC EDS
+③Install DE10-Nano OpenCL Board Support Package (BSP)
+
+□Install Intel Quartus Prime and OpenCL SDK
+Intel FPGA SDK for OpenCL (includes CodeBuilder, Quartus Prime software and devices)
+Linux版Standard18.0　ダウンロード 20G AOCL-18.0.0.614-linux.tarで展開すると出てくるsetup.shを起動
+/opt/以下にインストール
+ライセンスファイルのありかを聞かれるが、/home/ogura/License.dat指定
+
+□Intel SoC Embedded Development Suite(EDS)入れる
+Linux版Standard 18.0 ダウンロード,5G
+http://dl.altera.com/soceds
+SoCEDSSetup-18.0.0.614-linux.runを起動
+最後にds-5をどこに配置するか聞かれる
+
+32bitライブラリが不足している警告(CentOSにデフォルトでインストールされていない)
+yum -y install glibc.i686
+yum -y install libzip.i686
+
+□boardファイルのコピー
+/opt/inteFPGA/18.0/hld/board/tearasic以下にBSP_OpenCL/de10_nanoを丸ごとコピー
+
+□PATH変数など
+export QUARTUS_ROOTDIR=/opt/intelFPGA/18.0/quartus
+export ALTERAOCLSDKROOT=/opt/intelFPGA/18.0/hld
+export PATH=$PATH:$QUARTUS_ROOTDIR/bin:/opt/intelFPGA/18.0/embedded/ds-5/bin:/opt/intelFPGA/18.0/embedded/ds-5/sw/gcc/bin:$ALTERAOCLSDKROOT/bin:$ALTERAOCLSDKROOT/linux64/bin:
+export LD_LIBRARY_PATH=$ALTERAOCLSDKROOT/linux64/lib
+export AOCL_BOARD_PACKAGE_ROOT=$ALTERAOCLSDKROOT/board/terasic/de10_nano
+#export AOCL_BOARD_PACKAGE_ROOT=$ALTERAOCLSDKROOT/board/c5soc
+export QUARTUS_64BIT=1
+export LM_LICENSE_FILE=/home/ogura/Licese.dat
+
+□ホストとデバイスのコンパイル
+サンプルをコピー
+$ mkdir hello;cd hello
+$ cp -r /opt/intelFPGA/18.0/hld/board/terasic/de10_nano/examples/common/ .
+$ cp -r /opt/intelFPGA/18.0/hld/board/terasic/de10_nano/examples/hello_world/ .
+
+△デバイスのコンパイル
+$ aoc -list-boards
+Board list:
+  de10_nano_sharedonly
+     Board Package: /opt/intelFPGA/18.0/hld/board/terasic/de10_nano
+
+$ aoc hello_world.cl -board=de10_nano_sharedonly -report
+aoc: Selected target board de10_nano_sharedonly
+aoc: Running OpenCL parser....
+aoc: Optimizing and doing static analysis of code...
+
+!===========================================================================
+! The report below may be inaccurate. A more comprehensive           
+! resource usage report can be found at hello_world/reports/report.html    
+!===========================================================================
+
++--------------------------------------------------------------------+
+; Estimated Resource Usage Summary                                   ;
++----------------------------------------+---------------------------+
+; Resource                               + Usage                     ;
++----------------------------------------+---------------------------+
+; Logic utilization                      ;   11%                     ;
+; ALUTs                                  ;    5%                     ;
+; Dedicated logic registers              ;    6%                     ;
+; Memory blocks                          ;    7%                     ;
+; DSP blocks                             ;    0%                     ;
++----------------------------------------+---------------------------;
+Compiling for FPGA. This process may take a long time, please be patient.
+
+$ ls
+hello_world  hello_world.aoco  hello_world.aocx  hello_world.cl
+aocxの出来上がり:-)
+
+△ホストのコンパイル
+/opt/intelFPGA/18.0/embedded/embedded_command_shell.shを起動
+$ make
+$ ls
+Makefile  README.txt  bin  device  host
+
+bin/hello_worldがコンパイル結果
+$ file bin/hello_world 
+bin/hello_world: ELF 32-bit LSB executable, ARM, version 1 (SYSV), dynamically linked 
+(uses shared libs), for GNU/Linux 3.1.1, BuildID[sha1]=82d15eb424f4e888de7269648d4777b2159b2f97,
+ not stripped
+ARMバイナリができている！
+
+□ボードテスト
+

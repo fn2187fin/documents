@@ -1,0 +1,58 @@
+MandelbrotのサンプルSDイメージにパーティションを新設する
+
+ls /dev/mmcblk0*
+/dev/mmcblk0    /dev/mmcblk0p1  /dev/mmcblk0p2  /dev/mmcblk0p3  /dev/mmcblk0p4
+
+4つ認識されているがmmcblk0p4は空でFileSystemもないらしい
+
+[■fdiskでパーティションを作る]
+fdisk /dev/mmcblk0
+n
+p
+4
+Enter
+Enter
+w
+
+↑でパーティション4が生成できた
+
+e2fsck /dev/mmcblk0p4
+チェックすると↓を実行せよ、と言われたので、
+e2fsck -b 8193 /dev/mmcblk0p4
+
+なんかエラーが出るが
+
+Ext2を作る↓
+mke2fs /dev/mmcvlk0p4
+sync
+
+mountしてみる↓
+mkdir /mnt/p4; chmod 777 /mnt/p4
+mount /dev/mmcblk0p4
+
+df -h
+Filesystem                Size      Used Available Use% Mounted on 
+/dev/root                96.8M     96.0M         0 100% /          
+devtmpfs                247.0M         0    247.0M   0% /dev       
+tmpfs                   503.2M         0    503.2M   0% /dev/shm   
+tmpfs                   503.2M     20.0K    503.2M   0% /tmp       
+tmpfs                   503.2M     16.0K    503.2M   0% /run       
+/dev/mmcblk0p4            3.5G      7.1M      3.3G   0% /mnt/p4    
+
+出来てるみたい、3.3Gね
+
+[■/etc/fstabに追記]
+/dev/mmcblk0p4  /area51         ext2    defaults       0       0
+
+試す↓
+mount -a
+df -h
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root                96.8M     96.0M         0 100% /
+devtmpfs                247.0M         0    247.0M   0% /dev
+tmpfs                   503.2M         0    503.2M   0% /dev/shm
+tmpfs                   503.2M     20.0K    503.2M   0% /tmp
+tmpfs                   503.2M     16.0K    503.2M   0% /run
+/dev/mmcblk0p4            3.5G      7.1M      3.3G   0% /area51
+できてる:-)
+

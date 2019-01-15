@@ -1,0 +1,11 @@
+1. Quartus Prime スタンダードエディションでは、ModelSim-Altera starter editionが使えるのでインストール
+2. https://www.altera.co.jp/products/design-software/model---simulation/modelsim-altera-software.html
+   から、島崎さん借用のID/PasswordでQuartus Prime 15.1に合わせたバージョンをDL後インストール
+
+・ディレクトリABCにverilog作成済として、ModelSimのコマンドI/Fからシミュレーションの実行
+①ModelSimを起動
+②ABCに移動(cd どっか/ABC)
+③vlog *.v
+④vsim トップモジュール名
+⑤run 1000 (とか)
+

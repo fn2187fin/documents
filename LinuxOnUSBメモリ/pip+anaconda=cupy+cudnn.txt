@@ -1,0 +1,69 @@
+
+[■pipのインストール] ※pipはAnacondaをインストールすれば入ってくるのでAnaconda導入が先;-<
+http://rriifftt.hatenablog.com/entry/2015/10/28/142043
+↑記事に従う
+
+# yum install epel-release
+# yum install python-pip
+# pip install pip --upgrade
+
+yumのデフォルトリポでは足りないのでepelを追加してyumでインストールするらしい
+pipでpipをアップグレードして終わり
+
+[■cupyインストール]
+よくわからないけど呪文↓
+pip install -U setuptools
+
+pythonヘッダーをインストール
+yum install python-devel
+
+numpy, six, cuda, cudnn, ncclが必要らしいがcupyインストールで入るらしい
+※Windowsであれほど苦しんだcupyが簡単に入った:-)
+
+chainer2.0のinstallation guideによればcnDNN,NCCLをアップデートしたらcupyを入れ直せとある
+
+[■chainer 2.0インストール]
+では
+CUDA_PATH=/usr/local/cuda pip install chainer
+...
+Successfully installed chainer-2.0.2 cupy-1.0.3 filelock-2.0.13 funcsigs-1.0.2 mock-2.0.0 nose-1.3.7 pbr-3.1.1 protobuf-3.5.0.post1
+
+[■chainer v2.0.2のテスト]
+CPUでテストしてみる
+wget https://github.com/pfnet/chainer/archive/v2.0.2.tar.gz
+tar xvzf v2.0.2.tar.gz
+cd chainer-2.0.2/
+python examples/mnist/train_mnist.py
+遅い;-<
+
+nvidia-smiで見ると、192MiB/1998MiBのメモリ使用量で1%のUsage
+
+GPUでテストしてみる;-)
+ImportError:cannot import name cudnn
+あらら、、、
+
+色々やってみるがダメ
+
+python --version
+2.7.5
+でchainer 2.0.2では未サポートなんだがcudnnとは無関係だろう
+
+[■Anaconda導入]
+suではなくoguraで実行
+https://qiita.com/t2y/items/2a3eb58103e85d8064b6
+↑記事に従うが、ダウンロードしてインストーラを起動するのみ
+
+で、
+python --version
+Python 2.7.14 :: Anaconda, Inc.
+バージョンはあがった
+
+cupy入れてみる
+pip install cupy --no-cache
+入った
+
+python -c "import cupy;import cupy.cudnn"
+あらら、正常にcudnnが読めてる
+cupyとcudnnインストール成功
+
+

@@ -1,0 +1,143 @@
+intel FPGA for OpenCL
+hello world
+
+■terasicよりBSP
+DE10NanoはOpenCLを正式にサポートしている
+※3D Printer-Case？ケースの3Dプリンタデータが配布されている
+
+■Document Set
+□DE10-Nano User Manual (rev. B2/C Hardware) 	
+How to distinguish the board revision and what's differents. (rev. A/B/B2/C Hardware) 
+ ↑これに従い、入手ボードは"レビジョンC"と分かった
+
+□Quick Start Guide(rev. B2/C Hardware)
+※以下Windows7を使う
+
+付属のSDカード(Factory SD Cardと呼ぶらしい)でパワーオンしてDE10NanoとWindowsPCにUSBで繋ぐと、
+DE10Nanoがフォルダーに見える、ボードはこの時点で、USB Storageに見える
+Micro-B USBとWindowsを付属ケーブルで繋ぐ
+
+start.htmlの記載に従うと、WindowsからRNDISにドライバーインストールして、
+Etherポートが付いているのになぜか、Ether Over USBを使え！とある
+
+このRNDISドライバは、付属のSDカード内にある"linux-rndis.inf"らしいのでこれをインストール
+遅いが、Linux USB Ethernet/RNDIS Gagetとかいうドライバがインストールされた
+デフォルトIPアドレス ＝ 192.168.7.1
+Xtermからpingすると帰るが、ssh,telnet,IEとも無返答なので、firefoxで開とページが見える
+ボードはこの時点で、Web Serverに見えている
+※！このQuick Start Guideを読み飛ばすとDE10Nanoとの通信手段の設定を飛ばしてしまうことに…
+
+start/play/learn/developのメニューがあるが、ほぼFFTサンプルについて書かれている
+startは概要
+playではWeb-APIでLチカとFFT解析を実際にFPGAで実行させることができる:-O
+learnでは、software、FPGAの開発フロー
+・ソフトからFPGAがコンフィグできる
+・CPUからFPGAはメモリマップドペリフェラルとしてアクセスできて
+・FPGAをサポートするソフトは、BSPで提供される
+・デバイスツリーオーバーレイは、実行時に動的に書き換えられる！
+Device tree overlays can be applied or removed dynamically at run time 
+to update software support for FPGA peripherals.
+
+□DE10-Nano Product Brief 	
+□Getting Started Guide
+まず、Xfce Desktopの立上げ手順
+※Factory SD Cardを使え！とある
+  つまりFactory SD CardはXfce Desktopのイメージ(.img)が書き込まれていて、FPGAはFFT論理でコンフィグされている
+・Quartusをインストールせよ
+・Intel SoC Embedded Design Suiteをインストールせよ！
+・ライセンスを読め！stanndard(Linaro Compiler)は無償、Pro(ARM Compiler5/6)は有償
+・JTAG経由で.sofでリコンフィグしてみろ！
+
+次、Running Linux on the DE0-Nano board via UART Terminal
+
+Setting Up UART Terminal
+Factory SD Cardを使う前提らしいので、Factory SD Cardでブートして、
+・USB Serial Portを使えるように、UART-to-USBポート(USB-Bタイプ)とPCのUSBを繋ぐ
+　デバイスドライバはDE1SoC立上げのとき、WindowsPCにインストール済みなので、デバイスマネージャを見ると、
+　　USB Serial Port(COM19)
+　と認識されている
+・PuttyからCOM19に下記通信設定でアクセスする
+    115200 baud rate/no parity/1 stop bit/no flow control settings
+  login:プロンプトが見える、テキトーだが
+　root/パスワードなし
+　で入れた、、、ps auxをみるとX11vncとか立上がっているな:-)
+　teratermから入るとviでキー入力が効かない、Puttyなら効く;-<
+　hello worldなmain.c書いてgccコンパイル、、実行！OK
+
+次、Running Linux on DE10-Nano board
+最小で8GB/Class4な空のSDカードへBSPイメージを書き込み、起動確認する
+（Linux Console (kernel 4.5)を使う例はスキップ)
+・Linux Xfce Desktop (kernel 4.1.33-ltsi-altera)をダウンロードしてUnzip
+  SPL Pre-loader/U-boot/DeviceTreeBlob/Linux kernel/Linux Root File System
+  入った.imgらしい
+・Win32DiskImager.exeでSDカードへ書き込み
+  ------------------------------------------------------
+  Image                        Descriptions
+  ------------------------------------------------------
+  DE10_Nano_LXDE.zip           LXDE desktop
+  DE10_Nano_Linux_Console.zip  Without desktop feature
+  DE10_Nano_Xfce.zip           Factory Image(Factory SD Card)
+  ------------------------------------------------------
+  ↑色々あるから試してみてぃー
+
+・DE10_Nano_Linux_Console.zipをWin32DiskImageでSD Cardに書いて起動
+　rootで入れる、/dev/fb*は存在しないのでFrameBufferは使えないな;-<
+
+  DE1SoCのConsole Linuxと同じようなモノだが、kernelは4.5ベースだしarmv7lだと↓
+  # uname -a
+　Linux socfpga 4.5.0-00185-g3bb556b #3 SMP Wed Aug 16 15:56:01 CST 2017 armv7l GNU/Linux
+
+　EtherケーブルでDE10-NanoのEtherポートとWindowsを繋ぐ
+　WindowsのEtherポートを調べると192.168.1.20になったので、DE10-Nano側のEtherを
+　# ifconfig eth0 192.168.1.10
+  に設定して、Windowsからpingしてみる、、OK
+　ipアドレスがブートで消えないように、/etc/profileの最後にifconfig追加、リブート、OK
+
+  /etc/servicesを見るとsshdが立上がりそうなので、Windowsから
+  # ssh 192.168.1.10 -l root
+  root@socfpga:~#
+  loginできる
+
+　gccは載っているので、helloを作って試す、、、OK
+  gccはarm-angstrom-linux-gnueabi-gccのリンク
+
+　WinSCPのsftpで接続、、、OK
+
+次、Running Web Server on the DE10-Nano
+DE10-NanoでWebサーバーを立ち上げよう！って節で、これはQuick Start Guideの中身の再掲とUSB Gadgetのとめ方
+
+  で"Getting Started Guide"おしまい
+
+□My First FPGA 	
+□My First HPS 	
+□DE10-Nano Control Panel 	
+□DE10-Nano OpenCV 	
+"DE10-Nano OpenCV"にLXDE Desktop BSP built-in the OpenCV library..."
+"Also, the BSP includes the required toolchain for build OpenCV application"とある
+OpenCVはkernelに依存性ないので、、、Xfceでも同じlibが使えそうなもんだが
+USBカメラもサポートしているみたい
+デモのスクリーンショットを見ると
+camera_in:19.22FPS
+face_detection:3.66FPS
+"遅い処理はFPGAで高速化できるよー"って書いてはあるが方法の記載はない
+
+■CD-ROM
+DE10-Nano CD-ROM (rev. C Hardware)←意外と小さい216MB
+中身は、データシート、デモ、マニュアル、ボードスケマ、DE10_Nano_SystemBuilder.exe
+Quartusデータを含むBSPは、
+CD-ROM/DE10-Nano_v.1.3.2_HWrevC_SystemCD/Demonstrations/SoC_FPGA/
+・ControlPanel
+・DE10_NANO_SoC_FB
+・DE10_NANO_SoC_GHRD
+・HPS_FPGA_LED
+・Nios_Access_DDR3
+
+■BSPダウンロード
+BSP(Board Support Package) for Intel FPGA SDK OpenCL 16.1
+□DE10-Nano OpenCL User Manual
+□DE10-Nano OpenCL BSP (.tar.gz)
+
+Linux BSP (Board Support Package): MicroSD Card Image
+□Linux Console (kernel 4.5)
+□Linux Xfce Desktop (kernel 4.1.33-ltsi-altera)
+□Linux LXDE Desktop (kernel 4.5)

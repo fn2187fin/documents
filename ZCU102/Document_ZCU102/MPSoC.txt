@@ -1,0 +1,201 @@
+【★始まり】
+・中研よりZCU102借用
+・xilinx ZCU102ページからzcu102_2016.zipをDL、解凍してzcu102_2016.pdfを読む
+・Task 1: Installing Board files for the ZCU102:で、
+　ZCU102 HeadStart loungeを見ろとあるのがxilinx ID/Passが必要なので申請
+　翌日届く
+　ken-ogura/k5i-ogura
+  となる
+
+ug1209-embedded-design-tutuorial.pdfから
+
+1.ホストマシーン
+petalinuxはlinuxが必要なのでWindwos7上にvirtualBoxを利用
+VirtualBox上に英語版 Ubuntu-14.03 LTS 64bit mem 4G Disk 128GBで構築
+Prerequisites
+・ 4GB RAM (recommended minimum for Xilinx tools)
+・ Pentium 4 2GHz CPU clock or equivalent
+・ 20 GB free HDD space
+
+以下、VirtualBox上で作業
+
+①petalinux依存パッケージをaptで入れておく
+　tofrodos iproute gawk git-core net-tools ncurses-dev tftpd zlib1g-dev flex bison libssl-dev
+
+②petalinux-v2016.2-final-installer.runを実行
+　extract packageらしい
+　tfptdを立ち上げておくとイイことがありそうだが無視
+
+③petalinux-v2016.2-final/setting.shをsource実行(.bashrcに入れる)
+  petalinux-create -t project -s <Xilinx-ZCU102_-v2016.2-final.bsp>
+  petalinux-config --get-hw-description=<path-to-hdf>
+
+④petalinux-build
+petalinux-buildでエラー多発したので、下記のビルドを止める
+petalinux-config -c rootfs
+ lib->libsocketcan
+ Apps->xen
+ Apps->proxy
+ Apps->peekpoke
+ Apps->mat_mul_demo
+rootfsのビルドがほとんどエラーになる
+(後に起動shellがdashであることが原因とわかった)
+
+以上エラーを無視してビルドを進める
+cd images/linux
+petalinux-package --boot --fsbl zynqmp_fsbl.elf --u-boot
+BOOT.BINとimage.ub
+ができてしまうので、SDカードにコピーしてブートを試す
+
+com7(interface-0とデバイスマネージャで表示される)にTaraTermで接続(115200bps)
+
+ブートするがether接続がNG
+(後に1GbEのOnBoard EtherポートではpingがOKとなるとわかった)
+/etc/network/interface
+を編集するがrebootすると編集が消える
+→ramdiskで動作するので、ext3のFSは存在しないらしい
+
+【★CentOS7で！virtualboxは未確認との情報AVNet(ひどい話だ)】
+CentOS 7でpetalinuxのインストール
+yum install ...
+petalinux-v2016.2-final-installer.runを実行
+lsb_releaseでエラー、インストール
+yum install redhat-lsb-core
+再度インストールし、完
+
+windows上のデザインファイルとBSPをCentOSへコピーしてlinuxのビルド
+$ petalinux-config --get-hw-description=/home/20076433/edt/edt_zcu102.sdk
+$ petalinux-create -t project -s ../Xilinx-ZCU102-v2016.2-final.bsp
+$ petalinux-build
+...
+Failed to copy images to TFTPBOOT /tftpboot
+と最後のフェーズでエラーとなる。
+コンフィグからtftp bootを外すが、変わらず
+yum install ftfp-setver.x86_64 tftp.x86_64としてもTFTPBOOTのエラーは変わらず
+あきらめてパッケージを進める
+
+$ cd images/linux
+$ petalinux-package --boot --fsbl zynqmp_fsbl.elf --u-boot
+WARNING: Unable to access the TFTPBOOT folder /tftpboot
+WARNING: Skip file copy to TFTPBOOT folder!!!
+となるがBOOT.BIN、image.ubが出来上がる
+
+SDカードへコピーしてlinuxブートはOK、Etherはping通らず
+
+appsを作成しビルド
+petalinux-create -t apps --name hello --enable
+component/apps/hello/hello.cができるのでこれを目的に合わせて編集する
+
+ビルド
+petalinux-build -c rootfs/hello
+petalinux-build -x package
+または
+petalinux-build -c rootfs/hello -x package
+でもいけるのか？不明
+SDCardブートは試していないが、/bin/helloが出来上がるハズ
+
+【★Ubuntu@virtualBoxでのpetalinux】
+Ubuntuでは起動shellがdashであり、petalinuxはdashを未サポート
+起動shellをdashからbashに変更する
+sudo dpkg-reconfig dash
+https://www.xilinx.com/support/answers/63033.html
+Use dash as the default system shell(/bin/sh)?
+ <No>
+で起動shellが代わる
+petalinux-buildを再実行しOKとなる(ただしTFTPBOOTエラーは出るが無視して良いらしい)
+
+【appsのbuild】
+petalinux-create -t apps --name hello --enable
+component/apps/hello/hello.cができるのでこれを目的に合わせて編集する
+
+ビルド
+petalinux-build -c rootfs/hello
+petalinux-build -x package
+または
+petalinux-build -c rootfs/hello -x package
+でもいけるのか？不明
+SDCardブートは試していないが、/bin/helloが出来上がるハズ
+
+【★MPSoC上でのUbuntu環境】
+MPSoC上のUbuntu環境ではセルフコンパイルができるらしいので試す
+laungeへloginしてUbuntu_QT_GPU.zipをDownload(2.99GB)
+解凍して(15.5GB)Ubuntu_QT_GPU.imgをSDCardへWin32DiskImageで書き込む
+・キーボードレイアウト変更
+ setxkbmap -model jp106 -layout jp.us -option grp:alt_shft_toggle
+・Window Manager
+ gsettings set org.gnome.desktop.wm.preferences focus-mode sloppy
+ gsettings set org.gnome.desktop.wm.preferences auto-raise false
+ gsettings set org.gnome.desktop.wm.preferences raise-on-click false|
+・ether接続
+ なぜかeth4になる(boot時にrenameしているらしい)
+
+【★pingが通らない件】
+dmesgを見る限りeth0のlinkupは正常
+(25MHzのクロックがgenerate出来ない旨エラーが出るが本件とは無関係らしい)
+
+AVNetとの打合せで、別PCからのpingに応えることが分かり、あらためて試行する
+etherケーブルをPCのOnBoard Etherポートに直結するとpingは正常となる
+USB-LANアダプタを経由するとpingが通らないと判明
+BUFFALOでもLogtecでもNGで、100/10MbEの問題なのか、相性の問題なのかは不明
+
+OnBoard EtherポートはGbEであり、これだとpingがOKでその他telnetなどもOK
+Xilinx FAQに、100/10MbEは接続できない、と記載発見、1GbEのみのサポート
+
+【★BOOT.BINにカスタムスクリプトを含める方法を試す】
+petalinux-create -t apps -n <APP>
+でファイルがSDカードイメージに含まれることを利用して巨大ファイルを転送できるか試す
+含めたいスクリプトをcomponents/apps/<APP>/以下に巨大ファイルをコピー
+Makefileのinstallセクションにexampleに従って修正
+https://japan.xilinx.com/support/answers/55998.html
+80Mファイルでは成功だが、5G超ファイルではpetalinux-buildでエラー終了
+
+【★FAT16をマウント、巨大ファイルを読む】
+SDカードのFATパーティションに
+・appsで作成したCバイナリ
+・巨大ファイル
+を置き、linuxブート後にFAT16をmountしてCバイナリから読めるか試す
+  mount /dev/mmcblk0p1 /mnt
+  ls /mnt
+でマウントできる
+(後に、SDカードのFAT16は常に/run/media/mmcblk0p1にマウント済と分かった)
+ここに巨大ファイルを置けて、linuxから読めるということは、
+petalinux-create -t apps ...でCバイナリをinitramfsに含める必要はあまりなく、SDカードへ直接コピーでOK
+
+
+【★SDカードの相性】
+付属品 ScaDisk Ultra 48MB/s Class10 SDHC-I と書かれた16GBの品　ボード正常動作
+Kingston SDHC Class 4 32GBボードでブートせず
+付属品もKingston品もWindows上から1.0GBに見える
+相性があるかもしれないので、付属品と同種32GB版を購入
+
+【★QEMU ZCU102】
+cd Xilinx-ZCV102-2016.2
+petalinux-boot --qemu --image ./images/linux/zImage --dtb ./images/linux/system.dtb
+上記でQEMUがブートする
+QEMUからの抜け方は、
+  Ctrl-a x
+で、単純にCtrl-cでは抜けられない場合あり
+ID/Passは
+  root/root
+gettyは
+  ttyPS0/115200
+と表示あり
+
+【★11/25 アプリ設計環境】
+①petalinuxでカーネルイメージ、initramfsを作る OK
+②MPSoCをSDブートして、
+　PC⇔ether接続：
+　　ifconfig eth0 192.168.1.100に設定し、pingはOK
+　　linux@VBoxからtelnet OK
+　　linux@VBoxからftp　WinSCPからはOK　linuxのpftpからは転送が始まらない？NG
+　SDカードのmount：mount /dev/mmcblk0p1 /mnt OK→常に/run/media/mmcblk0p1マウント済で不要
+③A53アプリの転送
+　linux@VirtualBoxでクロス・コンパイルしてSDカードへコピーして実行　OK
+　FTPでZCU102へFTP転送して実行　WinSCPならOK
+　　mount /dev/mmcblk0p1 /var/ftp
+　これでftpの転送先ディレクトリがSDカードになるので、転送するとSDカードに書き込める
+⑤CNNのWファイル(2GB)はSDカードへWindows上でコピーしておく　OK
+　ULSI_r1でのmain関数動作確認 OK
+
+以上で確認全てOK
+

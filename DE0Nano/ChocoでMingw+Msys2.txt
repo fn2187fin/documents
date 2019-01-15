@@ -1,0 +1,148 @@
+pkg-configやもろもろのlinux系ツールは便利だが、Windows上でまともに使うにはCygwinなんかが必要
+シグウィーンって超めんどくさい
+MinGWだけでも使えるが、この際Msys2でpacmanを使えるようにしてみる
+pacmanでpkg-configなんか入ればいいなぁ:0)
+
+[■chocolateyでMinGWとMsys2]
+chocolateyでmingwとmsys2を入れてみる
+
+※chocoでproxyを越えるためには、必ずオプションにproxy/id/pwを渡すこと
+
+$ choco install msys2 --proxy=http://hafuhafu:8080/ --proxy-user=morimori --proxy-password=korekore
+Chocolatey v0.10.7
+Installing the following packages:
+msys2
+By installing you accept licenses for the packages.
+Progress: Downloading msys2 20160719.1.1... 100%
+
+msys2 v20160719.1.1 [Approved]
+msys2 package files install completed. Performing other installation steps.
+The package msys2 wants to run 'chocolateyinstall.ps1'.
+Note: If you don't run this script, the installation will fail.
+Note: To confirm automatically next time, use '-y' or consider:
+choco feature enable -n allowGlobalConfirmation
+Do you want to run the script?([Y]es/[N]o/[P]rint): y
+
+Adding 'C:\ProgramData\chocolatey\lib\msys2' to PATH...
+Installing to 'C:\tools\msys64'
+Using explicit proxy server 'http://hafuhafu:8080/'.
+Using explicit proxy server 'http://hafuhafu:8080/'.
+Downloading msys2 64 bit
+  from 'http://repo.msys2.org/distrib/x86_64/msys2-base-x86_64-20160719.tar.xz'
+Using explicit proxy server 'http://hafuhafu:8080/'.
+Progress: 100% - Completed download of C:\Users\20076433\AppData\Local\Temp\msys2\20160719.1.1\msys2-base-x86_64-20160719.tar.xz (44.82 MB).
+Download of msys2-base-x86_64-20160719.tar.xz (44.82 MB) completed.
+Hashes match.
+Extracting C:\Users\20076433\AppData\Local\Temp\msys2\20160719.1.1\msys2-base-x86_64-20160719.tar.xz to C:\tools...
+C:\tools
+Extracting C:\tools\msys2-base-x86_64-20160719.tar to C:\tools...
+C:\tools
+Adding 'C:\tools\msys64' to PATH...
+PATH environment variable does not have C:\tools\msys64 in it. Adding...
+Initializing MSYS2...
+Starting 'C:\tools\msys64\msys2.exe'...
+Upgrading core system packages with 'pacman --noconfirm -Syuu'...
+Upgrading full system with 'pacman --noconfirm -Syuu'...
+Environment Vars (like PATH) have changed. Close/reopen your shell to
+ see the changes (or in powershell/cmd.exe just type `refreshenv`).
+ The install of msys2 was successful.
+  Software installed to 'C:\tools'
+
+Chocolatey installed 1/1 packages.
+ See the log for details (C:\ProgramData\chocolatey\logs\chocolatey.log).
+20076433@CENT /n/win_shared/samples/viewer2/cvsdl_x86
+
+△PATH変数を更新できないとかいわれるんで、.bashrcへ追記
+
+[■ツールディレクトリ構造]
+mingwとmsys2は/c/tools/以下に置かれるわけだが、混じる;-<
+
+tools/                        
+| cygwin/                     
+| mingw64/ <= chocoで入れたmingw ★
+| | bin/   <= ここにgccとかがある★
+| | etc/
+| | include/　<= ここにgccヘッダとかがある★
+| | lib/
+| | libexec/
+| | licenses/
+| | opt/
+| | share/
+| | x86_64-w64-mingw32/
+| | build-info.txt                  
+| msys64/  <= chocoで入れたmsys2★                   
+| | dev/                      
+| | etc/                      
+| | home/                     
+| | mingw32/  <= mingw32があるが空っぽ★                
+| | | bin/                    
+| | | etc/                    
+| | | | config.site           
+| | | include/                
+| | | lib/                    
+| | | share/                  
+| | mingw64/  <= mingw32があるが空っぽ★                
+| | | bin/                    
+| | | etc/                    
+| | | | config.site           
+| | | include/                
+| | | lib/                    
+| | | share/                  
+| | opt/                      
+| | tmp/                      
+| | usr/ 
+| | | bin/   <= ここにpacmanとかがある★  
+| | | include/ 
+| | | lib/     
+| | | libexec/ 
+| | | local/   
+| | | share/   
+| | | src/     
+| | | ssl/     
+| | | var/                          
+| | var/                      
+| | mingw32.exe*              
+| | mingw64.exe*              
+| | msys2.exe*                
+| | autorebase.bat            
+| | autorebasebase1st.bat     
+| | dir                       
+| | mingw32.ini               
+| | mingw64.ini               
+| | msys2.ico                 
+| | msys2.ini                 
+| | msys2_shell.cmd           
+
+[■setroo問題を確認]
+なんだか/usr/binとかsetrootで使うbashによって変化しそう;-<
+Cmderのbashを使わんと、、、確認
+$ which bash
+/d/cmder/vecdor/git-for-windows/bin/bvash
+
+[■pacmanでpkg-configを入れてみる]
+で、pacmanのproxy越えは、
+vi /c/tools/msys64/etc/pacman.conf
+XferCommand = /c/tools/msys64/usr/bin/wget --no-check-certificate --passive-ftp -c -O %o %u
+↑pacmanはwgetを使うからね。。。コメント外す
+
+$ pacman -Ssq pkg-config
+mingw-w64-i686-pkg-config
+mingw-w64-x86_64-pkg-config
+pkg-config
+
+proxy越えられてますね:-)
+インストールpkg-config
+
+$ pacman -S mingw-w64-x86_64-pkg-config
+/c/tools/msys64/mingw64/bin/pkg-config.exe
+↑こんな場所に入りました
+
+PKG_CONFIG_PATHなんか設定
+
+[■その他linux系ツールをかたっぱしから]
+pacman -Ssqとpacman -Sの繰り返し
+
+★indent
+mingw-w64-x86_64-indent
+★eog
+mingw-w64-x86_64-eog

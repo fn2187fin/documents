@@ -1,0 +1,189 @@
+﻿"CVで動画再生にはFFMPEGが必要.txt"から続き
+
+[■OpenCV+FFMPEG+SDL2-GTKで動画再生]
+x86版のOpenCV+FFMPEG+SDL2+GTKでの動画再生は成功した
+ところが、GTKのARM移植には今のところ失敗していてARM上でGTKが使えない
+
+GTKを使わない環境が必要なんで試す;-<
+
+x86版のOpenCV+FFMPEG+SDL2+GTKのサンプルはGTKのウィンドウ表示機能を使っていないハズ
+ならば、GTKを含まないOpenCVライブラリでも動作できるし、これならばARMへ持って行けそうなんで、
+まずはx86版の
+　OpenCV+FFMPEG-GTKなOpenCVライブラリ＋SDL2
+ってモノでウィンドウが張れるかを試す
+
+※ARM版のOpenCVにGTKを組み入れられなかったように、
+ARM版のOpenCVにFFMPEGやSDL2を組み入れられないかもしれない
+SDL2はmandelbrotで組み入れた実績があるから少々安心ではある
+
+[■x86版GTKが入らないOpenCV+FFMPEG-GTKなOpenCVライブラリ]
+OpenCVライブラリ(opencv-3.2_x86+ffmpeg-gtk)を作る
+CMakeVars.txtを見てGTKとVTKを外してcmakeしてみる
+
+# cat cmake_x86+ffmpeg-gtk.sh
+
+cmake \
+-D SOFTFP=ON \
+-D CMAKE_BUILD_TYPE=Release \
+-D CMAKE_INSTALL_PREFIX=~/libs/opencv-3.2_x86+ffmpeg-gtk/release/installed \
+-D OPENCV_EXTRA_MODULES_PATH=~/libs/opencv_contrib/modules \
+-D BUILD_SHARED_LIBS=ON \
+-D WITH_OPENCL=OFF \
+-D WITH_CUDA=OFF \
+-D BUILD_FFMPEG=ON \
+-D WITH_GTK=OFF \
+-D WITH_GTK_2_X=OFF \
+-D WITH_VTK=OFF \
+.. | tee log
+
+# cmake_x86+ffmpeg-gtk.sh
+...
+--   GUI: 
+--     QT:                          NO
+--     GTK+:                        NO
+--     GThread :                    NO
+--     GtkGlExt:                    NO
+--     OpenGL support:              NO
+--     VTK support:                 NO
+...
+
+GTKはOFFになったので、
+# make
+highguiモジュールはスカスカだろうな、、、make終了
+
+# make install
+
+[■x86版のOpenCV+FFMPEG+SDL2-GTKアプリでの動画再生]
+完成したx86版のGTKが入らないOpenCV+FFMPEG-GTKなOpenCVライブラリでOpenCV＋SDL2アプリを試す
+動画ファイルを読んでSDL2のフォーマットに変換してSDL2で画面表示するサンプル↓
+OpenCVとSDLを連携させてみた
+http://qiita.com/masaniwasdp/items/1c701db0de10812cd01e
+ファイルはコピペで
+main.cc application.cc application.h sdlutil.cc sdlutil.h
+
+GTK無し版x86用opencvとsdl2をリンクするMakefile
+# cat Makefile
+
+PKG=/home/kenji/libs/opencv-3.2_x86+ffmpeg-gtk/release/installed/lib/pkgconfig
+CVL = $(shell export PKG_CONFIG_PATH=$(PKG) ; pkg-config --libs   opencv)
+CVC = $(shell export PKG_CONFIG_PATH=$(PKG) ; pkg-config --cflags opencv)
+SDL = $(shell export PKG_CONFIG_PATH=$(PKG) ; pkg-config --libs   sdl2)
+SDC = $(shell export PKG_CONFIG_PATH=$(PKG) ; pkg-config --cflags sdl2)
+TGT = testgo
+C11 = -std=c++11
+
+$(TGT): main.o application.o sdlutil.o
+	g++ $^ -o $@ $(SDL) $(CVL)
+
+application.o:application.cc
+	g++ -c -fPIC $(C11) $< -o $@ $(SDC) $(CVC)
+
+sdlutil.o:sdlutil.cc
+	g++ -c -fPIC $(C11) $< -o $@ $(SDC) $(CVC)
+
+main.o:main.cc
+	g++ -c -fPIC $(C11) $< -o $@ $(SDC) $(CVC)
+
+clean:
+	rm -f *.o
+	rm -f $(TGT)
+
+# make
+# testgo Megamind.avi
+おおぉ～GTK無しでもウィンドウ張って、再生できてる:-)
+
+どんなモノができたのか
+#readelf -d testgo | grep Sh
+ 0x0000000000000001 (NEEDED)             Shared library: [libSDL2-2.0.so.0]
+ 0x0000000000000001 (NEEDED)             Shared library: [libopencv_videoio.so.3.2]
+ 0x0000000000000001 (NEEDED)             Shared library: [libopencv_core.so.3.2]
+ 0x0000000000000001 (NEEDED)             Shared library: [libstdc++.so.6]
+ 0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]
+確かにlibopencv_highgui.soがリンクされていませんね
+
+[■ARM版GTKが入らないOpenCV+FFMPEG-GTKなOpenCVライブラリ BUILD_SHARED_LIBS=ON]
+SharedとStaticが両方入ったFFMPEGのライブラリを使用
+/home/kenji/libs/ffmpeg_armhf/lib/以下には*.aと*.soがある
+
+OpenCVはBUILD_SHAREDで
+BUILD_FFMPEGでFFMPEGの組込を指示
+
+# cat cmake_armhf_NEON_VFPV3_medium+ffmpeg.sh
+
+#!/bin/sh
+export PKG_CONFIG_PATH=/home/kenji/libs/ffmpeg_armhf/lib/pkgconfig/
+cmake -p \
+-D CMAKE_INSTALL_PREFIX=~/libs/opencv-3.2_armhf_NEON_VFPV3_medium+ffmpeg/release/installed \
+-D CMAKE_TOOLCHAIN_FILE=~/libs/opencv/platforms/linux/arm-gnueabi.toolchain.cmake \
+-D CMAKE_CXX_COMPILER=/home/kenji/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-g++ \
+-D CMAKE_C_COMPILER=/home/kenji/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-gcc \
+-D CMAKE_BUILD_TYPE=Release \
+-D PKG_CONFIG_EXECUTABLE=/home/kenji/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-pkg-config \
+-D BUILD_SHARED_LIBS=ON \
+-D ENABLE_NEON=ON \
+-D ENABLE_VFPV3=ON \
+-D BUILD_FFMPEG=ON \
+.. | tee log
+
+# cmake_armhf_NEON_VFPV3_medium+ffmpeg.sh
+...
+--   Video I/O:
+--     DC1394 1.x:                  NO
+--     DC1394 2.x:                  NO
+--     FFMPEG:                      NO
+--       avcodec:                   YES (ver 57.89.100)
+--       avformat:                  YES (ver 57.71.100)
+--       avutil:                    YES (ver 55.58.100)
+--       swscale:                   YES (ver 4.6.100)
+--       avresample:                NO
+...
+FFMPEGが組み込まれるね
+
+# make
+完成:-)
+Sharedライブラリファイル*.soのみができてる
+
+# make install
+
+[■ARM版GTKが入らないOpenCV+FFMPEG-GTKなOpenCVライブラリ BUILD_SHARED_LIBS=OFF]
+SharedとStaticが両方入ったFFMPEGのライブラリを使用
+/home/kenji/libs/ffmpeg_armhf/lib/以下には*.aと*.soがある
+
+# cat cmake_armhf_NEON_VFPV3_medium+ffmpeg_static.sh
+
+#!/bin/sh
+export PKG_CONFIG_PATH=/home/kenji/libs/ffmpeg_armhf/lib/pkgconfig/
+cmake -p \
+-D CMAKE_INSTALL_PREFIX=~/libs/opencv-3.2_armhf_NEON_VFPV3_medium+ffmpeg/release/installed \
+-D CMAKE_TOOLCHAIN_FILE=~/libs/opencv/platforms/linux/arm-gnueabi.toolchain.cmake \
+-D CMAKE_CXX_COMPILER=/home/kenji/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-g++ \
+-D CMAKE_C_COMPILER=/home/kenji/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-gcc \
+-D CMAKE_BUILD_TYPE=Release \
+-D PKG_CONFIG_EXECUTABLE=/home/kenji/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-pkg-config \
+-D BUILD_SHARED_LIBS=OFF \
+-D ENABLE_NEON=ON \
+-D ENABLE_VFPV3=ON \
+-D BUILD_FFMPEG=ON \
+.. | tee log
+
+# cmake_armhf_NEON_VFPV3_medium+ffmpeg_static.sh
+FFMPEGがONになってる
+CMakeVars.txtを確認、、、BUILD_SHARED_LIBS=OFFになってるね:-)
+
+# make
+完成:-)
+Staticライブラリファイル*.aのみができてる
+
+# make install
+
+[■2つのopencv.pc]
+StaticでビルドしたモノとSharedでビルドしたモノで、2つのopencv.pcが出来てLibs.privateの部分が少しだけ違う
+しかし、2つの*.pcファイルを順番にPKG_CONFIG_PATHに設定して試したが、pkg-config --libs opencvの結果は同じだった:-)
+Libs.privateは何につかわれるのか？分からないな
+
+[■ARM版OpenCV+FFMPEGなライブラリのビルドまとめ]
+FFMPEGはSharedとStaticの両方のビルドが必要
+OpenCVのビルドではBUILD_PERF_TESTやBUILD_TESTSなどの指示によってはlinkの方法と関係があるのか、makeがコケる？
+OpenCVのNEONのON/OFFも関係はありそうだが、今のところNEON=ONでOK
+

@@ -1,0 +1,83 @@
+DE0NanoをX11サーバーとして使う
+
+DE10NanoのFPGA Fabricは２つのGEMM演算器でフル(HDMI-IP論理は入らない)なので、
+一般物体検出デモセットとしての表示装置をDE0Nano上のX11サーバーとする
+DE0NanoのMandelbrotデモでは、Adafruit-LCD Display上へX11クライアントから表示
+
+DE10Nano + DE0Nano = [ ttt5_224_160.cfg Object Detector ] + [ X11 server ]
+とする
+
+■DE0Nano + Mandelbrot DEMOを改造してX11サーバーとした
+↓マンデルブローのデモ
+https://rocketboards.org/foswiki/Projects/OpenCLMandelbrotDemoOnAtlasSoC
+
+■linux 3.10.31-ltsiなlinux
+  DE10Nanoでも私用している3.1x.x系カーネルで起動
+
+■IPアドレスを固定
+　initタイプなので、/etc/init.d/S49_localIPに記述
+
+  [root@buildroot init.d]# cat /etc/init.d/S49_localIP
+  #!/bin/sh
+  ifconfig eth0 192.168.137.100 netmask 255.255.255.0
+
+■起動時にXサーバーを接続制限なしで起動
+
+  /etc/init.d/S50_start_dnn_demo.sh
+  -> /area51/darknet/XorgForDetObjDemo.sh
+  として起動時に"XorgForDetObjDemo.sh"を起動する
+
+  [root@buildroot darknet]# cat XorgForDetObjDemo.sh
+  #! /bin/bash -e
+  cd /area51/darknet
+  source ./env3.sh
+
+  XorgForDetObjDemo.sh
+  -> ./env3.sh
+  としてenv3.shを起動
+
+  [root@buildroot darknet]# cat /area51/darknet/env3.sh
+  source ./XorgForDetObjDemoInit.sh
+  export LD_LIBRARY_PATH=/lib/opencv:/area51/lib/opencv2413/:$LD_LIBRARY_PATH
+
+  [root@buildroot darknet]# cat XorgForDetObjeDemoInit.sh
+  ...
+
+  X -ac -listen tcp &
+  export DISPLAY=:0
+  sleep 2
+  echo " "
+  echo "Start X" $DISPLAY
+
+  ...
+  ここでやっとXの起動
+  Xの`-acオプション`は、Xサーバーを接続無制限とする設定(危険でもないだろぅ:-)
+
+■テスト
+  IPアドレスが192.168.137.1なPC(LANアダプタ)とDE0Nanoをつないでテスト
+
+  $ DISPLAY=192.168.137.100:0 xeyes
+
+        +-PC-------------+   +-DE0Nano---------+
+        |   192.168.137.1* - *192.168.137.100  |
+inter - *10.zzz.yyy.xx   |   |                 |
+  net   |                |   |                 |
+        +----------------+   +-----------------+
+           xeyes           =>  `@@(Adafruit LCD)
+成功! :-)
+
+　$ DISPLAY=192.168.137.100:0 xclock
+  Warnning : Missing charsets in String to FontSet conversion
+絵が出ない;-<
+
+■DE10NanoとDE0NanoをEther接続
+  Etherポート同士をストレートケーブルでつなぐ(Auto-Nego)
+  DE10Nanoは、192.168.137.2
+
+        +-DE10Nano-------+   +-DE0Nano---------+
+        |   192.168.137.2* - *192.168.137.100  |
+        |                |   |                 |
+        +----------------+   +-----------------+
+           xeyes           =>  `@@(Adafruit LCD)
+           darknet         =>  View Camera
+成功! :-)

@@ -1,0 +1,43 @@
+■Darknet-v2のバグ対策
+
+□network parse_network_cfg
+ 症状：.cfgでnum=1に指定できない
+  free_sectionで多重にfreeしている領域がありエラー
+  free_sectionを止める(1312L@darknet_lph)
+
+□detector.c内で(float *)でのcalloc
+ 症状： 32bitOSでは影響なしだが、64bitOSでは無効なメモリ領域が発生する
+ sizeof(float *)⇒sizeof(float)
+
+□parser.c内でnet.seenの書き出しサイズが64bitOSと32bitOSで違う
+ 症状： 64bitOS作成のウェイトが、32bitOSでは正しく読み出せない
+        同じbitサイズのOSならば問題なし
+        ウェイト作成、読み出しをbitサイズの異なるOSで行うとウェイト読み出しを誤る
+        network.seenはタイプ size_t*
+　書き出し、読み出し共に、常に8Byteとする
+
+□size_tとfloatの比較？どこだったか忘れた:-)
+ 症状：if文が常に真　if(size_tな0<マイナスなfloat)の比較が常に真(だったかな)
+
+□train_detector内のnetwork resize仕様変更
+ 症状： リサイズ値が固定であり、学習精度が低い
+
+□gemm_ttのC行列アクセスバグ
+ 症状： gemmでは第1(TA)、第2引数(TB)の値により、A,B行列にcol-majorまたはrow-majorでアクセスし、C行列は全てrow-major
+        [0,0]gemm->gemm_nn : A,B共にrow-majorでアクセス             C:row-major
+        [1,1]gemm->gemm_tt : A,B共にcol-majorでアクセス             C:row-major
+        [0,1]gemm->gemm_nt : Aにrow-major、Bにcol-majorでアクセス  C:row-major
+        [1,0]gemm->gemm_tn : Aにcol-major、Bにrow-majorでアクセス  C:row-major
+       しかし、C行列がrow-majorアクセスになっていて、BLASの仕様とは異る
+       BLAS同等に使用すると、Segmentation Faultを起こす
+
+ C行列のメモリレイアウトを追加修正(gemm2(TA,TB,TC,..,A..,B..C,..)) ※使っているモノ
+  ※     [0,0,0]gemm2->gemm_nn : A,B共にrow-majorでアクセス             C:row-major (BLAS仕様)  im2col+cblas
+        [0,0,1]gemm2->gemm_nnt: A,B共にrow-majorでアクセス             C:col-major
+        [1,1,0]gemm2->gemm_tt : A,B共にcol-majorでアクセス             C:row-major
+  ※     [1,1,1]gemm2->gemm_ttt: A,B共にcol-majorでアクセス             C:col-major (BLAS仕様)  im2row+cblas
+  ※     [0,1,0]gemm2->gemm_nt : Aにrow-major、Bにcol-majorでアクセス  C:row-major            im2col2+FPGA1
+  ※     [0,1,1]gemm2->gemm_ntt: Aにrow-major、Bにcol-majorでアクセス  C:col-major            im2row+col2row+FPGA2
+        [1,0,0]gemm2->gemm_tn : Aにcol-major、Bにrow-majorでアクセス  C:row-major
+        [1,0,1]gemm2->gemm_tnt: Aにcol-major、Bにrow-majorでアクセス  C:col-major
+

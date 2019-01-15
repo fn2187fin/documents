@@ -1,0 +1,43 @@
+※以下OpenCVライブラリをStatic/Dynamicリンクした実行可能ファイルを"OpenCVアプリ"と呼ぶ
+
+[■OpenCVのNEON_VFPV3サポートライブラリでOpenCVテストアプリを試す]
+#!/bin/sh
+cmake \
+-D CMAKE_INSTALL_PREFIX=~/libs/opencv-3.2_armhf_NEON_VFPV3/release/installed \
+-D CMAKE_TOOLCHAIN_FILE=~/libs/opencv/platforms/linux/arm-gnueabi.toolchain.cmake \
+-D CMAKE_CXX_COMPILER=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-g++ \
+-D CMAKE_C_COMPILER=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-gcc \
+-D CMAKE_AR=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-ar \
+-D CMAKE_BUILD_TYPE=Release \
+-D WITH_EIGEN=OFF \
+-D WITH_IPP=OFF \
+-D BUILD_SHARED_LIBS=OFF \
+-D BUILD_EXAMPLES=OFF \
+-D BUILD_TESTS=ON \
+-D BUILD_NEW_PYTHON_SUPPORT=OFF \
+-D BUILD_PYTHON_SUPPORT=OFF \
+-D WITH_OPENCL=OFF \
+-D WITH_CUDA=OFF \
+-D WITH_GTK=OFF \
+-D WITH_PNG=OFF \
+-D WITH_JPEG=OFF \
+-D WITH_CAROTENE=OFF \
+-D ENABLE_NEON=ON \
+-D ENABLE_VFPV3=ON \
+.. | tee log
+
+上のcmake設定後、makeが完了し、bin/opencv_perf_coreが動いたので他のbin/*のOpenCVアプリを全部試す。
+opencv_perf_core	:動く:意味わからん
+opencv_test_core	:動く:ライブラリの計算精度チェックかな、最後にFailする
+opencv_perf_imgproc	:動く:イメージ系かな
+opencv_test_imgproc	:動く:イメージ系かな
+opencv_perf_feaure2d	:動く:特徴抽出？最後にFailする
+opencv_perf_calib3d	:動く:3Dカメラのキャリブレーション？
+opencv_perf_imgcodec	:動く:Pass
+opencv_perf_objdetect	:動く:Pass
+opencv_perf_photo	:停止:road.pngを供給するが例外発生
+opencv_perf_stitching	:停止:./stitching/*.jpgを要求するがリポジトリでは供給されていない
+opencv_test_videoio	:停止:一部Passを示すが、、、
+opencv_test_video	:停止:一部Passを示すが、、、Invalid test data?
+opencv_visualization	:停止:使い方が不明　HAAR or LBPのみ、、とか言ってくる
+

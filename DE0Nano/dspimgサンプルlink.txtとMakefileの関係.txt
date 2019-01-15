@@ -1,0 +1,225 @@
+[■armライブラリでcmakeからOpenCVアプリを作る CMakeLists.txtの①]
+CMakeLists.txtとcmakeコマンドオプション、OpenCV_DIRな環境変数設定が必要になる
+
+OpenCVライブラリの在り処を変更して環境変数へ設定
+# export OpenCV_DIR=/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed
+またはset(ENV{変数} パス)で環境変数をCMakeLists.txt内で設定できる
+
+以下のCMakeLists.txtを作って、
+
+cmake_minimum_required (VERSION 2.6)
+project( dspimg )
+
+#set(CMAKE_EXE_LINKER_FLAGS "-static")
+#set(CMAKE_EXE_LINKER_FLAGS "-dynamic")
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+
+set(ENV{Open_DIR} /home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed)
+find_package( OpenCV REQUIRED )
+add_executable( dspimg dspimg.cc )
+target_link_libraries( dspimg ${OpenCV_LIBS} )
+
+gcc,g++,ar,ld,ranlibの全部を指定するオプション付きでcmake
+
+#cmake \
+-DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++ \
+-DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc \
+-DCMAKE_AR=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-ar \
+-DCMAKE_RANLIB=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-ranlib \
+-DCMAKE_LINKER=/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-ld \
+. | tee log
+
+CMakeFile/2.8.12.2/CMakeCCompiler.cmakeとかCMakeFile/2.8.12.2/CMakeCXXCompiler.cmakeなどを確認する、、OK
+
+# make
+
+makeで出来あがったOpenCVアプリの依存ライブラリは、
+# readelf -d dspimg
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so.6]
+ 0x00000001 (NEEDED)                     Shared library: [libdl.so.2]
+ 0x00000001 (NEEDED)                     Shared library: [libpthread.so.0]
+ 0x00000001 (NEEDED)                     Shared library: [librt.so.1]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so.6]
+ 0x00000001 (NEEDED)                     Shared library: [libgcc_s.so.1]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so.6]
+
+オブジェクトの属性は、
+# file dspimg
+dspimg: ELF 32-bit LSB  executable, ARM, EABI5 version 1 (SYSV), 
+dynamically linked (uses shared libs), for GNU/Linux 3.1.1, 
+BuildID[sha1]=29739d75e1ca565906827df3ec6042dc3df075b8, not stripped
+
+[■DE0へdspimgとHappyFish.jpgを転送して起動]
+
+# X &
+# dspimg
+OpenCV Error: Unspecified error 
+(The function is not implemented. Rebuild the library with Windows, GTK+ 2.x or Carbon support.
+ If you are on Ubuntu or Debian, install libgtk2.0-dev and pkg-config, then re-run cmake or configure script) 
+in cvNamedWindow, file /home/ogura/libs/opencv/modules/highgui/src/window.cpp, line 565
+terminate called after throwing an instance of 'cv::Exception'
+  what():  /home/ogura/libs/opencv/modules/highgui/src/window.cpp:565: error: (-2) 
+The function is not implemented. Rebuild the library with Windows, GTK+ 2.x or Carbon support. 
+If you are on Ubuntu or Debian, install libgtk2.0-dev and pkg-config, then re-run cmake or configure script 
+in function cvNamedWindow
+
+エラー！Gtk2.0+が必要
+でもまぁリンクには問題なさそぅ:-)
+
+[■画像ファイルの入出力だけ]
+サンプルとしたdspimg.ccは、画像を読み、Windowを張って画像を表示してキー入力を待つ、典型的なモノ
+
+#include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
+#include <iostream>
+#include <string>
+using namespace cv;
+using namespace std;
+
+int main( int argc, char** argv )
+{
+    String imageName( "./HappyFish.jpg" ); // by default
+    String imageNameW( "./Happy.jpg" ); // by default
+    if( argc > 1){imageName = argv[1];}
+    Mat image;
+    image = imread( imageName, IMREAD_COLOR ); // Read the file
+    if( image.empty() ){
+        cout <<  "Could not open or find the image" << std::endl ;
+        return -1;
+    }
+    imwrite( imageNameW,image ); // Read the file
+
+    // namedWindow( "Display window", WINDOW_AUTOSIZE ); // Create a window for display. need Gtk
+    // imshow( "Display window", image );                // Show our image inside it. need Gtk
+    // waitKey(0); // Wait for a keystroke in the window need Gtk
+    return 0;
+}
+
+Windowを表示する時にGtkを必要とするらしいので、そこを外しmakeしてDE0へ転送、起動、Happy.jpgが出来上がり、、OK
+画像ファイルの入出力はGtk無しでも動いた:-)
+waitKey()が使えないのは致命的だなぁ
+
+
+[■armライブラリでcmakeからOpenCVアプリを作る CMakeLists.txtの②]
+cmakeを調べるとCMakeLists.txt内に環境変数や使用するCompiler等の指定を書き込める
+set(変数 値)
+※ただし、CMakeFile/2.8.12.2/CMakeCCompiler.cmakeとかCMakeFile/2.8.12.2/CMakeCXXCompiler.cmakeなどには反映されない;-<
+
+cmake_minimum_required (VERSION 2.6)
+project( dspimg )
+
+set(CMAKE_TOOLCHAIN_FILE ~/libs/opencv/platforms/linux/arm-gnueabi.toolchain.cmake)
+set(CMAKE_CXX_COMPILER    /home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-g++)
+set(CMAKE_C_COMPILER      /home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-gcc)
+set(CMAKE_AR              /home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-ar)
+set(CMAKE_RANLIB          /home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-ranlib)
+set(CMAKE_LINKER          /home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-ld)
+
+# To find OpenCV Package
+set(ENV{OpenCV_DIR} /home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/)
+
+#set(CMAKE_EXE_LINKER_FLAGS "-static")
+set(CMAKE_EXE_LINKER_FLAGS "-dynamic")
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+
+find_package( OpenCV REQUIRED )
+add_executable( dspimg dspimg.cc )
+target_link_libraries( dspimg ${OpenCV_LIBS} )
+
+上記のCMakeLists.txtの下でcmakeは下記のように簡単になる
+# cmake .
+で、
+# make
+
+makeで出来あがったOpenCVアプリの依存ライブラリは、
+# readelf -d dspimg
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so.6]
+ 0x00000001 (NEEDED)                     Shared library: [libdl.so.2]
+ 0x00000001 (NEEDED)                     Shared library: [libpthread.so.0]
+ 0x00000001 (NEEDED)                     Shared library: [librt.so.1]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so.6]
+ 0x00000001 (NEEDED)                     Shared library: [libgcc_s.so.1]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so.6]
+
+オブジェクトの属性は、
+# file dspimg
+dspimg: ELF 32-bit LSB  executable, ARM, EABI5 version 1 (SYSV), 
+dynamically linked (uses shared libs), for GNU/Linux 3.1.1, 
+BuildID[sha1]=29739d75e1ca565906827df3ec6042dc3df075b8, not stripped
+
+DE0へ転送し起動、、、Happy.jpgが出来上がり、、OK  :-)
+
+[■OpenCVプロジェクトでのcmakeとmakeの関係]
+cmakeはMakefileを生成するシステムで、オブジェクト生成はmakeの役割であるとWebの解説
+しかしOpenCVで構築されているcmake環境は、
+cmake ⇒ Makefile生成 ⇒ make実行 ⇒ cmake実行 ⇒ オブジェクト生成される
+
+最終的にオブジェクトを生成するコマンドはcmakeの組込コマンドであり、
+# cmake .
+Makefileが作られ、
+# make
+Makefile内のルールでdspimg.cc.oが生成され、ビルド用のcmakeスクリプトが生成され、
+CMakeFiles/dspimg.dir/build.make
+
+↑ファイル内の↓ルールでリンクされて、
+cmake -E cmake_link_script cmakeCMakeFiles/dspimg.dir/link.txt --verbose=$(VERBOSE)
+
+↑の結果、dspimgなるOpenCVアプリが出来上がる
+このdspimg.dir/link.txt↓内は、
+
+/home/ogura/altera/15.1/embedded/ds-5/sw/gcc/bin/arm-linux-gnueabihf-g++ -dynamic CMakeFiles/dspimg.dir/dspimg.cc.o
+-o dspimg
+-rdynamic
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_calib3d.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_core.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_features2d.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_flann.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_highgui.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_imgcodecs.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_imgproc.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_ml.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_objdetect.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_photo.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_shape.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_stitching.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_superres.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_video.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_videoio.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_videostab.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_calib3d.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_features2d.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_flann.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_highgui.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_photo.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_video.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_videoio.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_imgcodecs.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/share/OpenCV/3rdparty/lib/liblibjpeg.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/share/OpenCV/3rdparty/lib/liblibwebp.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/share/OpenCV/3rdparty/lib/liblibpng.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/share/OpenCV/3rdparty/lib/liblibtiff.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/share/OpenCV/3rdparty/lib/liblibjasper.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/share/OpenCV/3rdparty/lib/libIlmImf.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_imgproc.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/lib/libopencv_core.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/share/OpenCV/3rdparty/lib/libzlib.a
+/home/ogura/libs/opencv-3.2_armhf_NEON_VFPV3_medium/release/installed/share/OpenCV/3rdparty/lib/libtegra_hal.a
+-lstdc++
+-ldl
+-lm
+-lpthread
+-lrt
+
+と、リンクするスクリプトそのものだった:-)なので、
+# rm dspimg
+# sh CMakeFiles/dspimg.dir/link.txt
+# ls dspimg
+# dspimg
+ちゃぁ～んとARM用のdspimgが出来上がった、ほぇ～こんなことする利点は理解できていないけど;-<
+
+※-rdynamicオプション:
+「gccコンパイラの-rdynamicオプションは、動的リンク可能なバイナリを作るときに使います。
+-rdynamicオプションを指定するこにより、実行ファイルの中に動的リンク用シンボルが残ります。
+リンカに、すべてのシンボルを動的シンボルテーブルに追加するように指示します。」
+;-o)リンクすることもできるし、単独でも動作するlibc.soみたいなモノを作るgccオプションらしい

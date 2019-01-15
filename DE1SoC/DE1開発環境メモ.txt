@@ -1,0 +1,38 @@
+・WindowsPC上でMakefileベースのARMバイナリのコンパイル
+　Altera Embedded Command Shellを起動
+　(今回はD:\altera\15.1\embedded\Embedded_Command_Shell.batにインストール)
+　一般的なhelloworld.cを例に、
+　　WindowsPC上で、
+　　①$ALTERAOCLSDKROOT/board/terasic/de1soc/examples/hello_world/Makefileをコピーして
+　　②SRC辺りを修正して、allルールに-gオプション付けて、make
+　　③WinSCPでARMに転送する
+　　ARM上で、
+　　①source init_opencl.sh
+　　②chmod +x hello
+　　③./hello　実行確認
+　
+・ARM上でgdb
+　Yacto Linuxのイメージにgdb, gdbserverがインストール済なので使える
+　先ほど転送したhelloをgdbにロード
+　　①gdb hello
+　　②b main
+　　③run
+　　④c でhello worldって出てOK
+　ソースコードもARMへ転送するとlistコマンドでソースが表示できる
+
+・ARM上でgdbserver、WindowsPC上でgdbのリモートデバッグ
+　ARM上で先ほどのhelloバイナリをロード、
+　　①gdbserver 192.168.0.2:8080 hello
+　WindowsPC上で、ARM上と同じバイナリをクロスターゲットgdbへロード
+　　②/cygdrive/d/altera/15.1/embedded/host_tools/mentor/gnu/arm/baremetal/bin/arm-altera-eabi-gdb hello
+　　>target remote 192.168.0.2:8080
+　　　この時点でARM側のターミナルに、Remote debugging from host 192.168.0.1と出る
+　　>list
+　　>cont
+　ARM上のターミナルにhello worldが表示されて、gdbserverが終了してしまう
+　一応の動作は確認できたが、通信にエラーが頻繁に出て、シリアル通信がハングアップする
+　安定性に欠けるので使えない
+
+・EclipseベースのDS5でコンパイル、リモートデバッグ
+　30日間ライセンス
+　Eclipseはgdbのフロントエンド機能を持っているが、リモートデバッグな場合は安定性に欠ける
