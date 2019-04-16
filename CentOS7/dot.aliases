@@ -5,6 +5,6 @@ alias diffg='git diff'
 alias commitg='git commit -m revise'
 alias pushg='git push -u origin master'
 alias statg='git status'
+alias checkoutg='git checkout'
 alias sc=screen
-alias fd=fdclone
 
