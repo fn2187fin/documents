@@ -1,1 +1,2 @@
 escape ^Xx # to change ^A to ^X
+termcapinfo xterm* ti@:te@
