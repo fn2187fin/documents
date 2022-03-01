@@ -100,9 +100,9 @@ alias sc='screen'
 
 export PATH=~/bin/:${PATH}
 
-export https_proxy=http://20076433:fn2187fin@obprx01.intra.hitachi.co.jp:8080
-export http_proxy=http://20076433:fn2187fin@obprx01.intra.hitachi.co.jp:8080
-export ftp_proxy=http://20076433:fn2187fin@obprx01.intra.hitachi.co.jp:8080
+export https_proxy=http://id:pwd@obprx01.intra.hitachi.co.jp:8080
+export http_proxy=http://id:pwd@obprx01.intra.hitachi.co.jp:8080
+export ftp_proxy=http://id:pwd@obprx01.intra.hitachi.co.jp:8080
 
 # colored GCC warnings and errors
 #export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
